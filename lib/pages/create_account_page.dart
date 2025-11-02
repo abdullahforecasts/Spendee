@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
+import 'package:http/http.dart' as http;
+
+import 'verification_pin_page.dart'; // <-- your next page
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
@@ -10,8 +14,73 @@ class CreateAccountPage extends StatefulWidget {
 }
 
 class _CreateAccountPageState extends State<CreateAccountPage> {
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  final String baseUrl =
+      "http://192.168.X.X:3000/api"; 
+
+  Future<void> _registerUser() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      _showSnackBar("All fields are required");
+      return;
+    }
+
+    if (password.length < 8) {
+      _showSnackBar("Password must be at least 8 characters");
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar("Passwords do not match");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/signup'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"name": name, "email": email, "password": password}),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _showSnackBar("Verification code sent to $email");
+
+        Future.delayed(const Duration(seconds: 1), () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationPinPage(email: email),
+            ),
+          );
+        });
+      } else {
+        final data = jsonDecode(response.body);
+        _showSnackBar(data["message"] ?? "Registration failed");
+      }
+    } catch (e) {
+      _showSnackBar("Network error: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,36 +117,48 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   ),
                 ),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 35),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 35,
+                  ),
                   child: SingleChildScrollView(
-                    physics: const NeverScrollableScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildLabel('Full Name'),
-                        _buildTextField('Enter here'),
+                        _buildTextField(
+                          controller: _nameController,
+                          hintText: 'Enter here',
+                        ),
                         const SizedBox(height: 25),
 
                         _buildLabel('Email'),
-                        _buildTextField('example@gmail.com'),
+                        _buildTextField(
+                          controller: _emailController,
+                          hintText: 'example@gmail.com',
+                        ),
                         const SizedBox(height: 25),
 
                         _buildLabel('Password'),
                         _buildPasswordField(
+                          controller: _passwordController,
                           hintText: '*********',
                           obscureText: _obscurePassword,
                           onToggle: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                         const SizedBox(height: 25),
 
                         _buildLabel('Confirm Password'),
                         _buildPasswordField(
+                          controller: _confirmPasswordController,
                           hintText: '*********',
                           obscureText: _obscureConfirmPassword,
-                          onToggle: () => setState(() =>
-                              _obscureConfirmPassword = !_obscureConfirmPassword),
+                          onToggle: () => setState(
+                            () => _obscureConfirmPassword =
+                                !_obscureConfirmPassword,
+                          ),
                         ),
                         const SizedBox(height: 20),
 
@@ -100,30 +181,31 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                             width: 200,
                             height: 50,
                             child: ElevatedButton(
-                              onPressed: () {
-                                // TODO: handle account creation
-                              },
+                              onPressed: _isLoading ? null : _registerUser,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF00D09E),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(30),
                                 ),
                               ),
-                              child: Text(
-                                "Sign Up",
-                                style: GoogleFonts.poppins(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const CircularProgressIndicator(
+                                      color: Colors.white,
+                                    )
+                                  : Text(
+                                      "Sign Up",
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
                         ),
 
                         const SizedBox(height: 40),
 
-                        // “Already have account?” clickable text
                         Center(
                           child: Text.rich(
                             TextSpan(
@@ -143,7 +225,9 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
                                       Navigator.pushReplacementNamed(
-                                          context, '/login');
+                                        context,
+                                        '/login',
+                                      );
                                     },
                                 ),
                               ],
@@ -175,15 +259,20 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 
-  Widget _buildTextField(String hintText) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+  }) {
     return TextField(
+      controller: controller,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(height: 1.2), // lowers hint text a bit
         filled: true,
         fillColor: const Color(0xFFE6F8F0),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18,
+          horizontal: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
@@ -193,19 +282,22 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   Widget _buildPasswordField({
+    required TextEditingController controller,
     required String hintText,
     required bool obscureText,
     required VoidCallback onToggle,
   }) {
     return TextField(
+      controller: controller,
       obscureText: obscureText,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(height: 0.0), // lowers the asterisks
         filled: true,
         fillColor: const Color(0xFFE6F8F0),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 18,
+          horizontal: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,

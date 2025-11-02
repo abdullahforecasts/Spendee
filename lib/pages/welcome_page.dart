@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'security_fingerprint_page.dart';
-import 'my_profile.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

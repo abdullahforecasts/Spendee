@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'welcome_page.dart';
+import 'create_account_page.dart';
 
 class LaunchPage extends StatelessWidget {
   const LaunchPage({super.key});
@@ -73,7 +74,11 @@ class LaunchPage extends StatelessWidget {
                 height: 48,
                 child: OutlinedButton(
                   onPressed: () {
-                    // TODO: add signup functionality
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CreateAccountPage())
+
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     backgroundColor: const Color(0xFFE6F8F0),

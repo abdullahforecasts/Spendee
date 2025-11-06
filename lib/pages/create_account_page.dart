@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
+import 'package:spendee/pages/welcome_page.dart';
 
-import 'verification_pin_page.dart'; // <-- your next page
+import 'verification_pin_page.dart';
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
@@ -224,9 +225,32 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                                   ),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
-                                      Navigator.pushReplacementNamed(
-                                        context,
-                                        '/login',
+                                      // Navigator.pushReplacementNamed(
+                                      //   context,
+                                      //   '/login',
+                                      // );
+
+                                      //idhr bhi slide navigation
+                                      Navigator.of(context).pushReplacement(
+                                        PageRouteBuilder(
+                                          transitionDuration: const Duration(milliseconds: 600), // smooth speed
+                                          reverseTransitionDuration: const Duration(milliseconds: 600), // for back nav
+                                          pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
+                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                            const begin = Offset(1.0, 0.0); // start from right
+                                            const end = Offset.zero;
+                                            const curve = Curves.easeInOutCubic; // smoother curve
+
+                                            final tween = Tween(begin: begin, end: end).chain(
+                                              CurveTween(curve: curve),
+                                            );
+
+                                            return SlideTransition(
+                                              position: animation.drive(tween),
+                                              child: child,
+                                            );
+                                          },
+                                        ),
                                       );
                                     },
                                 ),

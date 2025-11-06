@@ -30,7 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
+  animations: ^2.0.11
+  page_transition: ^2.0.9
   local_auth: ^2.3.0
     
   google_fonts: ^6.1.0

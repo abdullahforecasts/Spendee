@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
+import 'package:spendee/pages/create_account_page.dart';
+import 'package:spendee/pages/forgot_password_page.dart';
+import 'package:spendee/pages/home_page.dart';
 import 'security_fingerprint_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -137,12 +140,38 @@ class _LoginPageState extends State<LoginPage> {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
+                            // onPressed: () {
+                            //   Navigator.pushReplacementNamed(
+                            //     context,
+                            //     '/main',
+                            //   );
+
+                            // },
                             onPressed: () {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/main',
+                              Navigator.of(context).pushReplacement(
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(milliseconds: 500), // smooth speed
+                                  reverseTransitionDuration: const Duration(milliseconds: 500), // for back nav
+                                  pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                    const begin = Offset(1.0, 0.0); // start from right
+                                    const end = Offset.zero;
+                                    const curve = Curves.easeInOutCubic; // smoother curve
+
+                                    final tween = Tween(begin: begin, end: end).chain(
+                                      CurveTween(curve: curve),
+                                    );
+
+                                    return SlideTransition(
+                                      position: animation.drive(tween),
+                                      child: child,
+                                    );
+                                  },
+                                ),
                               );
                             },
+
+
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF00B686),
                               shape: RoundedRectangleBorder(
@@ -163,9 +192,32 @@ class _LoginPageState extends State<LoginPage> {
                         Center(
                           child: TextButton(
                             onPressed: () {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/forgot-password',
+                              // Navigator.pushReplacementNamed(
+                              //   context,
+                              //   '/forgot-password',
+                              // );
+
+                              //animations of sliding
+                              Navigator.of(context).pushReplacement(
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(milliseconds: 500), // smooth speed
+                                  reverseTransitionDuration: const Duration(milliseconds: 500), // for back nav
+                                  pageBuilder: (context, animation, secondaryAnimation) => const ForgotPasswordPage(),
+                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                    const begin = Offset(1.0, 0.0); // start from right
+                                    const end = Offset.zero;
+                                    const curve = Curves.easeInOutCubic; // smoother curve
+
+                                    final tween = Tween(begin: begin, end: end).chain(
+                                      CurveTween(curve: curve),
+                                    );
+
+                                    return SlideTransition(
+                                      position: animation.drive(tween),
+                                      child: child,
+                                    );
+                                  },
+                                ),
                               );
                             },
                             child: Text(
@@ -194,11 +246,34 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const SecurityFingerprintPage(),
+                                      // Navigator.push(
+                                      //   context,
+                                      //   MaterialPageRoute(
+                                      //     builder: (context) =>
+                                      //         const SecurityFingerprintPage(),
+                                      //   ),
+                                      // );
+
+                                      //animation of sliding
+                                      Navigator.of(context).pushReplacement(
+                                        PageRouteBuilder(
+                                          transitionDuration: const Duration(milliseconds: 500), // smooth speed
+                                          reverseTransitionDuration: const Duration(milliseconds: 500), // for back nav
+                                          pageBuilder: (context, animation, secondaryAnimation) => const SecurityFingerprintPage(),
+                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                            const begin = Offset(1.0, 0.0); // start from right
+                                            const end = Offset.zero;
+                                            const curve = Curves.easeInOutCubic; // smoother curve
+
+                                            final tween = Tween(begin: begin, end: end).chain(
+                                              CurveTween(curve: curve),
+                                            );
+
+                                            return SlideTransition(
+                                              position: animation.drive(tween),
+                                              child: child,
+                                            );
+                                          },
                                         ),
                                       );
                                     },
@@ -248,9 +323,31 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () {
-                                      Navigator.pushReplacementNamed(
-                                        context,
-                                        '/create-account',
+                                      // Navigator.pushReplacementNamed(
+                                      //   context,
+                                      //   '/create-account',
+                                      // );
+
+                                      Navigator.of(context).pushReplacement(
+                                        PageRouteBuilder(
+                                          transitionDuration: const Duration(milliseconds: 600), // smooth speed
+                                          reverseTransitionDuration: const Duration(milliseconds: 600), // for back nav
+                                          pageBuilder: (context, animation, secondaryAnimation) => const CreateAccountPage(),
+                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                            const begin = Offset(1.0, 0.0); // start from right
+                                            const end = Offset.zero;
+                                            const curve = Curves.easeInOutCubic; // smoother curve
+
+                                            final tween = Tween(begin: begin, end: end).chain(
+                                              CurveTween(curve: curve),
+                                            );
+
+                                            return SlideTransition(
+                                              position: animation.drive(tween),
+                                              child: child,
+                                            );
+                                          },
+                                        ),
                                       );
                                     },
                                 ),

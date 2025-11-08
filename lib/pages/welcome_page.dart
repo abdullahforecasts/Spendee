@@ -5,6 +5,7 @@ import 'package:spendee/pages/create_account_page.dart';
 import 'package:spendee/pages/forgot_password_page.dart';
 import 'package:spendee/pages/home_page.dart';
 import 'security_fingerprint_page.dart';
+import 'main_navigation_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -152,7 +153,7 @@ class _LoginPageState extends State<LoginPage> {
                                 PageRouteBuilder(
                                   transitionDuration: const Duration(milliseconds: 500), // smooth speed
                                   reverseTransitionDuration: const Duration(milliseconds: 500), // for back nav
-                                  pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+                                  pageBuilder: (context, animation, secondaryAnimation) => const MainNavigationPage(),
                                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                     const begin = Offset(1.0, 0.0); // start from right
                                     const end = Offset.zero;

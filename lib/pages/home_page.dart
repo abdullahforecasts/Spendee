@@ -170,10 +170,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'trip_details_page.dart';
 import 'group_creation_page.dart';
 import 'help_page.dart';
+import 'notifications_page.dart';
 import 'package:animations/animations.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+
+  // Mock unread notifications count - in real app, this would come from your data
+  int get _unreadNotificationsCount => 10; // Change this to test: 0 for no badge
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +193,9 @@ class HomePage extends StatelessWidget {
             fontWeight: FontWeight.w600,
             fontSize: 25,
           ),
+        ),
+        leading: Builder(
+          builder: (context) => _buildDrawerIconWithBadge(context),
         ),
         actions: [
           IconButton(
@@ -276,6 +283,46 @@ class HomePage extends StatelessWidget {
     );
   }
 
+  // Build drawer icon with notification badge - FIXED VERSION
+  Widget _buildDrawerIconWithBadge(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black, size: 24),
+          onPressed: () {
+            Scaffold.of(context).openDrawer();
+          },
+        ),
+        if (_unreadNotificationsCount > 0)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                _unreadNotificationsCount > 9 ? '9+' : '$_unreadNotificationsCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   // DRAWER - NOW ONLY 3/4 OF SCREEN WIDTH, FULL HEIGHT
   Widget _buildDrawer(BuildContext context) {
     return SizedBox(
@@ -325,23 +372,47 @@ class HomePage extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      trailing: Container(
+                      trailing: _unreadNotificationsCount > 0
+                          ? Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           color: const Color(0xFF00D09E),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '3',
+                          _unreadNotificationsCount > 9 ? '9+' : '$_unreadNotificationsCount',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
+                      )
+                          : null,
                       onTap: () {
                         Navigator.pop(context);
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            transitionDuration: const Duration(milliseconds: 500),
+                            reverseTransitionDuration: const Duration(milliseconds: 500),
+                            pageBuilder: (context, animation, secondaryAnimation) =>
+                            const NotificationsPage(),
+                            transitionsBuilder:
+                                (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(1.0, 0.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeInOutCubic;
+
+                              final tween = Tween(begin: begin, end: end)
+                                  .chain(CurveTween(curve: curve));
+
+                              return SlideTransition(
+                                position: animation.drive(tween),
+                                child: child,
+                              );
+                            },
+                          ),
+                        );
                       },
                     ),
                   ],

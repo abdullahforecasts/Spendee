@@ -17,6 +17,9 @@ import 'pages/home_page.dart';
 import 'pages/rooms_page.dart';
 import 'pages/friends_page.dart';
 
+import 'pages/notifications_page.dart';
+import 'pages/add_friend_page.dart';
+
 void main() {
   runApp(const MyApp());
 }

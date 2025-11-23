@@ -44,9 +44,9 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () {
             Navigator.pushReplacementNamed(
-                                context,
-                                '/main',
-                              );
+              context,
+              '/main',
+            );
           },
         ),
         title: const Text(
@@ -113,7 +113,7 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               const CircleAvatar(
                 radius: 70,
-                backgroundImage: AssetImage('assets/images/img01.jpeg'),
+                backgroundImage: AssetImage('assets/profile.jpg'),
               ),
               Container(
                 decoration: BoxDecoration(
@@ -163,14 +163,14 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC9F8DC),
+                backgroundColor: const Color(0xFF00D09E),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
               child: const Text(
-                "Add Account",
+                "Add Payment Account",
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 16,

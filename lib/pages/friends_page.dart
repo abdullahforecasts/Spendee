@@ -71,7 +71,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:spendee/pages/my_profile.dart';
+import 'my_profile.dart';
+import 'add_friend_page.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({Key? key}) : super(key: key);
@@ -300,8 +301,30 @@ class _FriendsPageState extends State<FriendsPage> {
                     width: 160 * scale,
                     height: 52 * scale,
                     child: ElevatedButton.icon(
+                      // Update in friends_page.dart - in the floating action button section
                       onPressed: () {
-                        // TODO: Open Add Friend page or show add friend modal
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            transitionDuration: const Duration(milliseconds: 500),
+                            reverseTransitionDuration: const Duration(milliseconds: 500),
+                            pageBuilder: (context, animation, secondaryAnimation) =>
+                            const AddFriendPage(),
+                            transitionsBuilder:
+                                (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(1.0, 0.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeInOutCubic;
+
+                              final tween = Tween(begin: begin, end: end)
+                                  .chain(CurveTween(curve: curve));
+
+                              return SlideTransition(
+                                position: animation.drive(tween),
+                                child: child,
+                              );
+                            },
+                          ),
+                        );
                       },
                       icon: Icon(Icons.person_add, size: 20 * scale),
                       label: Text(

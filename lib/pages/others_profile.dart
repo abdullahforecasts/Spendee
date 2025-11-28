@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class OthersProfileViewPage extends StatelessWidget {
   const OthersProfileViewPage({super.key});
@@ -20,7 +21,10 @@ class OthersProfileViewPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
-          onPressed: () {},
+          onPressed: () {
+            // FIXED: Added navigation pop
+            Navigator.pop(context);
+          },
         ),
         title: const Text(
           "Spendee",
@@ -31,10 +35,7 @@ class OthersProfileViewPage extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: const [
-          Icon(Icons.more_vert, color: Colors.black),
-          SizedBox(width: 15),
-        ],
+        // FIXED: Removed actions (three dots button)
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -42,7 +43,7 @@ class OthersProfileViewPage extends StatelessWidget {
             bottom: false,
             child: Container(
               width: double.infinity,
-              height: constraints.maxHeight,
+              height: constraints.maxHeight, // Take full available height
               decoration: const BoxDecoration(
                 color: backgroundColor,
                 borderRadius: BorderRadius.only(
@@ -66,78 +67,83 @@ class OthersProfileViewPage extends StatelessWidget {
     );
   }
 
-  // Portrait Layout
   Widget _buildPortraitLayout() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Profile Image
-        const CircleAvatar(
-          radius: 70,
-          backgroundImage: AssetImage('assets/images/img01.jpeg'),
-        ),
-        const SizedBox(height: 50),
-
-        // Fixed Info Boxes
-        _buildFixedTile(label: "Name", value: "Israr Hussain"),
-        const SizedBox(height: 20),
-        _buildFixedTile(label: "UID", value: "ABCDE123"),
-        const SizedBox(height: 50),
-
-        // Friend Request Button
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: () {
-              // TODO: Send friend request functionality
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00D09E),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text(
-              "Send Friend Request",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: Colors.black,
-              ),
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Text(
+            "Profile",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 25,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 25),
+
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              const CircleAvatar(
+                radius: 70,
+                // FIXED: Corrected asset path
+                backgroundImage: AssetImage('assets/profile.jpg'),
+              ),
+              // Optional: You can remove this edit icon container if
+              // you don't want any icon on a generic profile.
+              // Leaving it out based on "Others Profile" logic usually implies read-only.
+            ],
+          ),
+          const SizedBox(height: 35),
+
+          _buildFixedTile(
+            label: "Name",
+            value: "Ali Maqsood", // Hardcoded or passed via constructor
+          ),
+          const SizedBox(height: 20),
+
+          _buildFixedTile(
+            label: "UID",
+            value: "ABCDE123",
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
-  // Landscape Layout
   Widget _buildLandscapeLayout() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Left Side - Avatar
         Expanded(
           flex: 1,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const Text(
+                "Profile",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 25,
+                ),
+              ),
+              const SizedBox(height: 20),
               const CircleAvatar(
-                radius: 65,
-                backgroundImage: AssetImage('assets/images/img01.jpeg'),
+                radius: 60,
+                // FIXED: Corrected asset path
+                backgroundImage: AssetImage('assets/profile.jpg'),
               ),
             ],
           ),
         ),
 
-        // Divider Line
+        // Vertical Divider Line
         Container(
-          width: 2,
-          margin: const EdgeInsets.symmetric(vertical: 30),
+          width: 1,
+          margin: const EdgeInsets.symmetric(vertical: 40),
           decoration: BoxDecoration(
             color: Colors.grey[300],
             borderRadius: BorderRadius.circular(1),
@@ -148,38 +154,21 @@ class OthersProfileViewPage extends StatelessWidget {
 
         Expanded(
           flex: 2,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildFixedTile(label: "Name", value: "Israr Hussain"),
-              const SizedBox(height: 20),
-              _buildFixedTile(label: "UID", value: "ABCDE123"),
-              const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Send friend request functionality
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC9F8DC),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    "Send Friend Request",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
-                  ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildFixedTile(
+                  label: "Name",
+                  value: "Ali Maqsood",
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                _buildFixedTile(
+                  label: "UID",
+                  value: "ABCDE123",
+                ),
+              ],
+            ),
           ),
         ),
       ],

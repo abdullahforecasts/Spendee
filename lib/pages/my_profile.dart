@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'add_payment_account_page.dart';
+import 'specific_payment_account_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -9,9 +12,55 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool isEditingName = false;
-
   String name = "Israr Hussain";
   final nameController = TextEditingController();
+
+  // --- NEW DATA & LOGIC START ---
+  final List<Map<String, dynamic>> _paymentAccounts = [
+    {
+      'id': '1',
+      'name': 'JazzCash',
+      'number': '0300-1234567',
+    },
+    {
+      'id': '2',
+      'name': 'HBL',
+      'number': '1234-5678-9012-3456',
+    },
+    {
+      'id': '3',
+      'name': 'JazzCash',
+      'number': '0312-3456789',
+    },
+  ];
+
+  Map<String, List<Map<String, dynamic>>> get _groupedAccounts {
+    Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (var account in _paymentAccounts) {
+      if (!grouped.containsKey(account['name'])) {
+        grouped[account['name']] = [];
+      }
+      grouped[account['name']]!.add(account);
+    }
+    return grouped;
+  }
+
+  void _navigateToSpecificPaymentAccount(Map<String, dynamic> account) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SpecificPaymentAccountPage(account: account),
+      ),
+    );
+  }
+
+  void _navigateToAddPaymentAccount() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddPaymentAccountPage()),
+    );
+  }
+  // --- NEW DATA & LOGIC END ---
 
   @override
   void initState() {
@@ -32,7 +81,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final isLandscape = screenWidth > screenHeight;
 
     const Color primaryColor = Color(0xFF00D09E);
-    const Color lightGreen = Color(0xFFC9F8DC);
     const Color backgroundColor = Color(0xFFFFFFFF);
 
     return Scaffold(
@@ -43,10 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () {
-            Navigator.pushReplacementNamed(
-              context,
-              '/main',
-            );
+            Navigator.pop(context);
           },
         ),
         title: const Text(
@@ -69,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
             bottom: false,
             child: Container(
               width: double.infinity,
-              height: constraints.maxHeight, // Take full available height
+              height: constraints.maxHeight,
               decoration: const BoxDecoration(
                 color: backgroundColor,
                 borderRadius: BorderRadius.only(
@@ -95,10 +140,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildPortraitLayout() {
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // ---------------------------------------------
+          // EXACT UPPER PART (From your provided code)
+          // ---------------------------------------------
           const Text(
             "Your Profile",
             style: TextStyle(
@@ -155,184 +204,138 @@ class _ProfilePageState extends State<ProfilePage> {
             label: "UID",
             value: "ABCDE123",
           ),
-          const SizedBox(height: 20),
 
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00D09E),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                "Add Payment Account",
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: Colors.black,
-                ),
+          // ---------------------------------------------
+          // NEW LOWER PART (Payment Methods & Button)
+          // ---------------------------------------------
+          const SizedBox(height: 25),
+
+          // Header
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Payment Methods",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                color: Colors.black87,
               ),
             ),
           ),
-          const SizedBox(height: 25),
+          const SizedBox(height: 15),
 
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 15,
-            runSpacing: 10,
-            children: [
-              _buildPaymentChip("JC"),
-              _buildPaymentChip("Nayapay"),
-              _buildPaymentChip("Easypaisa"),
-              _buildPaymentChip("Bank Alfalah"),
-              _buildPaymentChip("HBL"),
-              _buildPaymentChip("UBL"),
-            ],
+          // Grouped Expansion List
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: _groupedAccounts.length,
+            itemBuilder: (context, index) {
+              String key = _groupedAccounts.keys.elementAt(index);
+              List<Map<String, dynamic>> accounts = _groupedAccounts[key]!;
+
+              // Helper to get initials (e.g. JazzCash -> JC)
+              String initials = key.length >= 2 ? key.substring(0, 2).toUpperCase() : key.substring(0, 1).toUpperCase();
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F6FA),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    leading: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00D09E),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontSize: 16),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      key, // Bank Name
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    children: accounts.map((account) {
+                      return ListTile(
+                        onTap: () => _navigateToSpecificPaymentAccount(account),
+                        contentPadding: const EdgeInsets.only(left: 70, right: 20, bottom: 5),
+                        title: Text(
+                          account['number'],
+                          style: GoogleFonts.poppins(
+                              fontSize: 14, color: Colors.black87),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios,
+                            size: 14, color: Colors.grey),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
           ),
+
+          const SizedBox(height: 15),
+
+          // Add Payment Account Button (New Style)
+          Container(
+            width: double.infinity,
+            height: 55,
+            decoration: BoxDecoration(
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00D09E).withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                )
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _navigateToAddPaymentAccount,
+              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+              label: Text(
+                "Add Payment Account",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00D09E),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
         ],
       ),
     );
   }
 
-  Widget _buildLandscapeLayout() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          flex: 1,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                "Your Profile",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 25,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  const CircleAvatar(
-                    radius: 60,
-                    backgroundImage: AssetImage('assets/images/img01.jpeg'),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(40),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 5,
-                        )
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.black, size: 18),
-                      onPressed: () {},
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+  // --- HELPER WIDGETS ---
 
-        // Vertical Divider Line
-        Container(
-          width: 1,
-          margin: const EdgeInsets.symmetric(vertical: 40),
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(1),
-          ),
-        ),
-
-        const SizedBox(width: 20),
-
-        Expanded(
-          flex: 2,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildEditableTile(
-                  label: "Name",
-                  value: name,
-                  controller: nameController,
-                  isEditing: isEditingName,
-                  onToggle: () {
-                    setState(() {
-                      if (isEditingName) {
-                        name = nameController.text.trim();
-                      }
-                      isEditingName = !isEditingName;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                _buildFixedTile(
-                  label: "UID",
-                  value: "ABCDE123",
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC9F8DC),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text(
-                      "Add Account",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 15,
-                  runSpacing: 10,
-                  children: [
-                    _buildPaymentChip("JC"),
-                    _buildPaymentChip("Nayapay"),
-                    _buildPaymentChip("Easypaisa"),
-                    _buildPaymentChip("Bank Alfalah"),
-                    _buildPaymentChip("HBL"),
-                    _buildPaymentChip("UBL"),
-                    _buildPaymentChip("MCB"),
-                    _buildPaymentChip("Allied Bank"),
-                    _buildPaymentChip("Soneri Bank"),
-                    _buildPaymentChip("Faysal Bank"),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
+  // 1. Original Editable Tile (Upper Part)
   Widget _buildEditableTile({
     required String label,
     required String value,
@@ -382,13 +385,13 @@ class _ProfilePageState extends State<ProfilePage> {
               controller: controller,
               maxLength: 20,
               maxLines: 1,
-              autofocus: true, // Automatically focus when editing starts
+              autofocus: true,
               textAlignVertical: TextAlignVertical.center,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 counterText: '',
                 isDense: true,
-                contentPadding: EdgeInsets.zero, // Remove extra padding
+                contentPadding: EdgeInsets.zero,
                 floatingLabelBehavior: FloatingLabelBehavior.never,
               ),
               style: const TextStyle(
@@ -420,6 +423,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // 2. Original Fixed Tile (Upper Part)
   Widget _buildFixedTile({
     required String label,
     required String value,
@@ -475,27 +479,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPaymentChip(String label) {
-    const Color primaryColor = Color(0xFF00D09E);
-    return ElevatedButton(
-      onPressed: () {},
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryColor,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        elevation: 0,
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
-      ),
-    );
+  // Placeholder for landscape (kept from original code structure)
+  Widget _buildLandscapeLayout() {
+    return const Center(child: Text("Landscape View"));
   }
-
 }

@@ -167,376 +167,151 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'trip_details_page.dart';
-import 'group_creation_page.dart';
-import 'help_page.dart';
-import 'notifications_page.dart';
 import 'package:animations/animations.dart';
+import 'trip_details_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  // Mock unread notifications count - in real app, this would come from your data
-  int get _unreadNotificationsCount => 10; // Change this to test: 0 for no badge
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF00D09E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF00D09E),
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          "Spendee",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 25,
-          ),
-        ),
-        leading: Builder(
-          builder: (context) => _buildDrawerIconWithBadge(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onPressed: () {
-              // TODO: Handle menu options
-            },
-          ),
-        ],
-      ),
-      drawer: _buildDrawer(context),
-      body: Stack(
-        children: [
-          Container(color: const Color(0xFF00D09E)),
-          Positioned.fill(
-            top: 0,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFE6F8F0),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(60),
-                  topRight: Radius.circular(60),
-                ),
-              ),
-              margin: const EdgeInsets.only(top: 0),
-              padding: const EdgeInsets.all(25),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Hi, Welcome Back 👋",
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTripCard(
-                      context,
-                      "Murree Trip",
-                      "Ali Maqsood",
-                      0.8,
-                      "8/10 paid",
-                    ),
-                    _buildTripCard(
-                      context,
-                      "Saturday Night",
-                      "Abdullah",
-                      0.5,
-                      "5/10 paid",
-                    ),
-                    _buildTripCard(
-                      context,
-                      "Car Pooling",
-                      "Anas",
-                      0.4,
-                      "2/5 paid",
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: OpenContainer(
-        transitionDuration: const Duration(milliseconds: 500),
-        openElevation: 0,
-        closedElevation: 6,
-        closedShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(50),
-        ),
-        closedColor: const Color(0xFF00B686),
-        openColor: const Color(0xFFE6F8F0),
-        openBuilder: (context, _) => const GroupCreationPage(),
-        closedBuilder: (context, openContainer) => FloatingActionButton(
-          onPressed: openContainer,
-          backgroundColor: const Color(0xFF00B686),
-          child: const Icon(Icons.add),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    );
-  }
+    final List<Map<String, dynamic>> _recentTrips = [
+      {
+        'title': 'Murree Trip',
+        'creator': 'Ali Maqsood',
+        'isCreator': true,
+        'progress': 0.8,
+        'ratio': '4/5 paid',
+        'myStatus': 'Paid',
+      },
+      {
+        'title': 'Saturday Night',
+        'creator': 'Abdullah',
+        'isCreator': false,
+        'progress': 0.5,
+        'ratio': '5/10 paid',
+        'myStatus': 'Unpaid',
+      },
+      {
+        'title': 'Car Pooling',
+        'creator': 'Anas',
+        'isCreator': false,
+        'progress': 0.4,
+        'ratio': '2/5 paid',
+        'myStatus': 'Paid',
+      },
+    ];
 
-  // Build drawer icon with notification badge - FIXED VERSION
-  Widget _buildDrawerIconWithBadge(BuildContext context) {
     return Stack(
-      clipBehavior: Clip.none,
       children: [
-        IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black, size: 24),
-          onPressed: () {
-            Scaffold.of(context).openDrawer();
-          },
-        ),
-        if (_unreadNotificationsCount > 0)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
+        Container(color: const Color(0xFF00D09E)),
+        Positioned.fill(
+          top: 0,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFFE6F8F0),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(60),
+                topRight: Radius.circular(60),
               ),
-              constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
-              ),
-              child: Text(
-                _unreadNotificationsCount > 9 ? '9+' : '$_unreadNotificationsCount',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
+            ),
+            padding: const EdgeInsets.all(25),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Hi, Welcome Back 👋",
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ..._recentTrips.map((trip) => _buildTripCard(context, trip)).toList(),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
           ),
+        ),
       ],
     );
   }
 
-  // DRAWER - NOW ONLY 3/4 OF SCREEN WIDTH, FULL HEIGHT
-  Widget _buildDrawer(BuildContext context) {
-    return SizedBox(
-      width: MediaQuery.of(context).size.width * 0.75, // 75% width
-      child: Drawer(
-        backgroundColor: const Color(0xFFE6F8F0),
-        child: Column(
-          children: [
-            // Header with gradient
-            Container(
-              height: 150,
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF008B6C),
-                    Color(0xFF00D09E),
-                    Color(0xFF7FFFD4),
-                  ],
-                  stops: [0.0, 0.5, 1.0],
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  'Spendee',
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ),
-            ),
+  Widget _buildTripCard(BuildContext context, Map<String, dynamic> trip) {
+    bool isCreator = trip['isCreator'];
+    bool isPaid = trip['myStatus'] == 'Paid';
 
-            // Scrollable content
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.notifications, color: Color(0xFF00D09E)),
-                      title: Text(
-                        'Notifications',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      trailing: _unreadNotificationsCount > 0
-                          ? Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00D09E),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _unreadNotificationsCount > 9 ? '9+' : '$_unreadNotificationsCount',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )
-                          : null,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.of(context).push(
-                          PageRouteBuilder(
-                            transitionDuration: const Duration(milliseconds: 500),
-                            reverseTransitionDuration: const Duration(milliseconds: 500),
-                            pageBuilder: (context, animation, secondaryAnimation) =>
-                            const NotificationsPage(),
-                            transitionsBuilder:
-                                (context, animation, secondaryAnimation, child) {
-                              const begin = Offset(1.0, 0.0);
-                              const end = Offset.zero;
-                              const curve = Curves.easeInOutCubic;
-
-                              final tween = Tween(begin: begin, end: end)
-                                  .chain(CurveTween(curve: curve));
-
-                              return SlideTransition(
-                                position: animation.drive(tween),
-                                child: child,
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const Divider(color: Colors.grey, height: 1),
-
-            ListTile(
-              leading: const Icon(Icons.help, color: Color(0xFF00D09E)),
-              title: Text(
-                'Help',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 500),
-                    reverseTransitionDuration: const Duration(milliseconds: 500),
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                    const HelpPage(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                      const begin = Offset(1.0, 0.0);
-                      const end = Offset.zero;
-                      const curve = Curves.easeInOutCubic;
-
-                      final tween = Tween(begin: begin, end: end)
-                          .chain(CurveTween(curve: curve));
-
-                      return SlideTransition(
-                        position: animation.drive(tween),
-                        child: child,
-                      );
-                    },
-                  ),
-                );
-              },
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 500),
+          pageBuilder: (_, __, ___) => const TripDetailsPage(),
+          transitionsBuilder: (_, animation, __, child) => FadeScaleTransition(animation: animation, child: child),
+        ));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTripCard(
-      BuildContext context,
-      String title,
-      String creator,
-      double progress,
-      String ratioText,
-      ) {
-    return OpenContainer(
-      transitionDuration: const Duration(milliseconds: 500),
-      closedElevation: 0,
-      closedColor: const Color(0xFFD9F5E9),
-      openColor: const Color(0xFFE6F8F0),
-      closedShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      openBuilder: (context, _) => const TripDetailsPage(),
-      closedBuilder: (context, openContainer) => Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(15),
-          onTap: openContainer,
-          splashColor: const Color(0xFF00D09E).withOpacity(0.2),
-          highlightColor: Colors.transparent,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 15),
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: const Color(0xFF00D09E),
-                  child: const Icon(
-                    Icons.location_on,
-                    color: Colors.white,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        "Created by $creator",
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: progress,
-                        color: Colors.black,
-                        backgroundColor: Colors.white,
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        ratioText,
-                        style: GoogleFonts.poppins(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6F8F0),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(Icons.group_work, color: Color(0xFF00D09E), size: 28),
             ),
-          ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(trip['title'], style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(isCreator ? "Created by You" : "Created by ${trip['creator']}", style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 10),
+                  if (isCreator) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: LinearProgressIndicator(
+                        value: trip['progress'],
+                        backgroundColor: const Color(0xFFF1F1F1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00D09E)),
+                        minHeight: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(trip['ratio'], style: GoogleFonts.poppins(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w500)),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isPaid ? const Color(0xFFE6F8F0) : const Color(0xFFFFF0F0),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isPaid ? const Color(0xFF00D09E) : Colors.redAccent.withOpacity(0.5)),
+                      ),
+                      child: Text(isPaid ? "Status: Paid" : "Status: Unpaid", style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: isPaid ? const Color(0xFF00D09E) : Colors.redAccent)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade300),
+          ],
         ),
       ),
     );

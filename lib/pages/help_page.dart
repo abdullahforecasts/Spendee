@@ -176,3 +176,4 @@ class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin
     );
   }
 }
+

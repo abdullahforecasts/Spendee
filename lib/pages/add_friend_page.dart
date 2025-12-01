@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../utils/session.dart';
 
 class AddFriendPage extends StatefulWidget {
   const AddFriendPage({super.key});
@@ -12,29 +15,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   final TextEditingController _uidController = TextEditingController();
   final FocusNode _uidFocusNode = FocusNode();
 
-  // Hard-coded database of users with numeric UIDs and profile images
-  final Map<String, Map<String, dynamic>> _usersDatabase = {
-    '12345678': {
-      'name': 'Anas Faisal',
-      'uid': '12345678',
-      'profileImage': 'profile.jpg',
-    },
-    '87654321': {
-      'name': 'Ali Maqsood',
-      'uid': '87654321',
-      'profileImage': 'profile.jpg',
-    },
-    '11112222': {
-      'name': 'Abdullah Khan',
-      'uid': '11112222',
-      'profileImage': 'profile.jpg',
-    },
-    '99998888': {
-      'name': 'Sarah Ahmed',
-      'uid': '99998888',
-      'profileImage': 'profile.jpg',
-    },
-  };
+  final String baseUrl = 'http://192.168.100.12:3000/api';
 
   Map<String, dynamic>? _foundUser;
   bool _requestSent = false;
@@ -48,28 +29,99 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
   void _searchUser() {
     final String uid = _uidController.text.trim();
-
-    setState(() {
-      _isSearching = uid.isNotEmpty;
-
-      if (uid.isEmpty) {
+    setState(() => _isSearching = uid.isNotEmpty);
+    if (uid.isEmpty) {
+      setState(() {
         _foundUser = null;
         _requestSent = false;
-      } else if (_usersDatabase.containsKey(uid)) {
-        _foundUser = _usersDatabase[uid];
-        _requestSent = false;
-      } else {
-        _foundUser = null;
-        _requestSent = false;
+      });
+      return;
+    }
+
+    // call backend search
+    _searchUserBackend(uid);
+  }
+
+  Future<void> _searchUserBackend(String q) async {
+    if (Session.authHeader == null) return;
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/users/search?query=${Uri.encodeComponent(q)}',
+      );
+      final resp = await http.get(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true &&
+            data['users'] != null &&
+            (data['users'] as List).isNotEmpty) {
+          final u = data['users'][0];
+          setState(() {
+            _foundUser = {
+              '_id': u['_id'],
+              'name': u['name'],
+              'uuid': u['uuid'],
+              'profilePic': u['profilePic'],
+            };
+            _requestSent = false;
+          });
+          return;
+        }
       }
-    });
+      setState(() {
+        _foundUser = null;
+        _requestSent = false;
+      });
+    } catch (e) {
+      setState(() {
+        _foundUser = null;
+        _requestSent = false;
+      });
+    }
   }
 
   void _sendFriendRequest() {
-    if (_foundUser != null) {
-      setState(() {
-        _requestSent = true;
-      });
+    if (_foundUser == null) return;
+    _sendFriendRequestBackend();
+  }
+
+  Future<void> _sendFriendRequestBackend() async {
+    if (Session.authHeader == null || _foundUser == null) return;
+    final friendId = _foundUser!['_id'] ?? _foundUser!['uuid'];
+    if (friendId == null) return;
+    try {
+      final uri = Uri.parse('$baseUrl/users/friend-request/$friendId');
+      final resp = await http.post(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+          'Content-Type': 'application/json',
+        },
+      );
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode == 200 && data['success'] == true) {
+        setState(() {
+          _requestSent = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? 'Request sent')),
+        );
+        Navigator.of(context).pop(true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? 'Failed to send request')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Network error: $e')));
     }
   }
 
@@ -133,12 +185,12 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 ),
                 suffixIcon: _isSearching
                     ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
-                  onPressed: () {
-                    _uidController.clear();
-                    _uidFocusNode.requestFocus();
-                  },
-                )
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _uidController.clear();
+                          _uidFocusNode.requestFocus();
+                        },
+                      )
                     : null,
               ),
               style: GoogleFonts.poppins(fontSize: 16),
@@ -153,18 +205,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
             const SizedBox(height: 10),
             Text(
               'UID must be exactly 8 digits (0-9)',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.black54,
-              ),
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
             ),
 
             const SizedBox(height: 30),
 
             // Scrollable display area
-            Expanded(
-              child: _buildResultWidget(),
-            ),
+            Expanded(child: _buildResultWidget()),
           ],
         ),
       ),
@@ -190,11 +237,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.search, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Type UID to search for a friend',
@@ -218,11 +261,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.person_off,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.person_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'No user found with this UID',
@@ -266,9 +305,11 @@ class _AddFriendPageState extends State<AddFriendPage> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF00D09E),
-                    image: const DecorationImage(
-                      image: AssetImage('assets/profile.jpg'), // Use your profile image
-                      fit: BoxFit.cover,
+                    image: DecorationImage(
+                      image: _foundUser!['profilePic'] != null
+                          ? NetworkImage(_foundUser!['profilePic'])
+                                as ImageProvider
+                          : AssetImage('assets/default_profile.png'),
                     ),
                     border: Border.all(
                       color: const Color(0xFF00D09E),
@@ -290,7 +331,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
                 // UID
                 Text(
-                  'UID: ${_foundUser!['uid']}',
+                  'UID: ${_foundUser!['uuid']}',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.black54,

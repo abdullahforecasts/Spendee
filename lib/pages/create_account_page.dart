@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
@@ -23,9 +26,20 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  File? _profileImage;
+  final ImagePicker _picker = ImagePicker();
 
-  final String baseUrl =
-      "http://192.168.X.X:3000/api"; 
+  final String baseUrl = "http://192.168.100.12:3000/api";
+
+  Future<void> _pickProfileImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImage = File(pickedFile.path);
+      });
+    }
+  }
 
   Future<void> _registerUser() async {
     final name = _nameController.text.trim();
@@ -51,14 +65,27 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/signup'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"name": name, "email": email, "password": password}),
-      );
+      final uri = Uri.parse('$baseUrl/auth/signup');
+
+      // Use MultipartRequest so we can attach an optional image file
+      final request = http.MultipartRequest('POST', uri);
+      request.fields['name'] = name;
+      request.fields['email'] = email;
+      request.fields['password'] = password;
+
+      if (_profileImage != null) {
+        final multipartFile = await http.MultipartFile.fromPath(
+          'profilePic',
+          _profileImage!.path,
+        );
+        request.files.add(multipartFile);
+      }
+
+      final streamedResp = await request.send();
+      final response = await http.Response.fromStream(streamedResp);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSnackBar("Verification code sent to $email");
+        _showSnackBar("Sending verification code to $email");
 
         Future.delayed(const Duration(seconds: 1), () {
           Navigator.push(
@@ -126,6 +153,40 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Center(
+                          child: Column(
+                            children: [
+                              GestureDetector(
+                                onTap: _pickProfileImage,
+                                child: CircleAvatar(
+                                  radius: 55,
+                                  backgroundColor: const Color(0xFFE6F8F0),
+                                  backgroundImage: _profileImage != null
+                                      ? FileImage(_profileImage!)
+                                      : null,
+                                  child: _profileImage == null
+                                      ? Icon(
+                                          Icons.camera_alt,
+                                          color: Colors.grey[700],
+                                          size: 35,
+                                        )
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                "Upload Profile Picture (Optional)",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 25),
+                            ],
+                          ),
+                        ),
+
                         _buildLabel('Full Name'),
                         _buildTextField(
                           controller: _nameController,
@@ -233,23 +294,49 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                                       //idhr bhi slide navigation
                                       Navigator.of(context).pushReplacement(
                                         PageRouteBuilder(
-                                          transitionDuration: const Duration(milliseconds: 600), // smooth speed
-                                          reverseTransitionDuration: const Duration(milliseconds: 600), // for back nav
-                                          pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
-                                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                            const begin = Offset(1.0, 0.0); // start from right
-                                            const end = Offset.zero;
-                                            const curve = Curves.easeInOutCubic; // smoother curve
+                                          transitionDuration: const Duration(
+                                            milliseconds: 600,
+                                          ), // smooth speed
+                                          reverseTransitionDuration:
+                                              const Duration(
+                                                milliseconds: 600,
+                                              ), // for back nav
+                                          pageBuilder:
+                                              (
+                                                context,
+                                                animation,
+                                                secondaryAnimation,
+                                              ) => const LoginPage(),
+                                          transitionsBuilder:
+                                              (
+                                                context,
+                                                animation,
+                                                secondaryAnimation,
+                                                child,
+                                              ) {
+                                                const begin = Offset(
+                                                  1.0,
+                                                  0.0,
+                                                ); // start from right
+                                                const end = Offset.zero;
+                                                const curve = Curves
+                                                    .easeInOutCubic; // smoother curve
 
-                                            final tween = Tween(begin: begin, end: end).chain(
-                                              CurveTween(curve: curve),
-                                            );
+                                                final tween =
+                                                    Tween(
+                                                      begin: begin,
+                                                      end: end,
+                                                    ).chain(
+                                                      CurveTween(curve: curve),
+                                                    );
 
-                                            return SlideTransition(
-                                              position: animation.drive(tween),
-                                              child: child,
-                                            );
-                                          },
+                                                return SlideTransition(
+                                                  position: animation.drive(
+                                                    tween,
+                                                  ),
+                                                  child: child,
+                                                );
+                                              },
                                         ),
                                       );
                                     },

@@ -97,35 +97,159 @@
 //   }
 // }
 
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/api_service.dart';
 import 'others_profile.dart';
 import 'select_friends_page.dart';
 
 class RoomMembersPage extends StatefulWidget {
   final String roomName;
-  const RoomMembersPage({super.key, this.roomName = "Murree Trip Room"});
+  final String? roomId;
+  const RoomMembersPage({
+    super.key,
+    this.roomName = "Murree Trip Room",
+    this.roomId,
+  });
 
   @override
   State<RoomMembersPage> createState() => _RoomMembersPageState();
 }
 
 class _RoomMembersPageState extends State<RoomMembersPage> {
-  // --- STATE: Toggle for testing Leader view ---
-  final bool _isCurrentUserLeader = true;
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
+  String _error = '';
+  bool _isCurrentUserLeader = false;
+  String _roomDisplayName = '';
+  String? _roomId;
+  String _roomIcon = '👥';
+  Color _roomColor = const Color(0xFFE6F8F0);
+  String? _currentUserId;
 
-  final List<Map<String, dynamic>> _members = [
-    {'name': 'Ali Maqsood', 'role': 'leader', 'image': 'assets/profile.jpg'},
-    {'name': 'Abdullah', 'role': 'member', 'image': 'assets/profile.jpg'},
-    {'name': 'Anas Faisal', 'role': 'member', 'image': 'assets/profile.jpg'},
-    {'name': 'Israr Hussain', 'role': 'member', 'image': 'assets/profile.jpg'},
-  ];
+  List<Map<String, dynamic>> _members = [];
 
   @override
   void initState() {
     super.initState();
-    _sortMembers();
+    _roomId = widget.roomId;
+    _roomDisplayName = widget.roomName;
+    if (_roomId != null) {
+      _loadRoomDetails();
+    } else {
+      // fallback to static members for UI while no id provided
+      _members = [
+        {
+          'name': 'Ali Maqsood',
+          'role': 'leader',
+          'image': 'assets/profile.jpg',
+        },
+        {'name': 'Abdullah', 'role': 'member', 'image': 'assets/profile.jpg'},
+        {
+          'name': 'Anas Faisal',
+          'role': 'member',
+          'image': 'assets/profile.jpg',
+        },
+        {
+          'name': 'Israr Hussain',
+          'role': 'member',
+          'image': 'assets/profile.jpg',
+        },
+      ];
+      _sortMembers();
+    }
+  }
+
+  Future<void> _loadRoomDetails() async {
+    setState(() {
+      _isLoading = true;
+      _error = '';
+    });
+
+    try {
+      // fetch current user to determine leader status
+      final profile = await _apiService.getProfile();
+      final currentUser = profile['user'];
+      final currentUserId = currentUser != null
+          ? (currentUser['_id'] ?? currentUser['id']?.toString())
+          : null;
+
+      final roomData = await _apiService.getRoomDetails(_roomId!);
+      // roomData expected to be a Map representing room
+      final r = roomData; // defensive alias
+
+      final name = (r['name'] ?? r['title'] ?? widget.roomName).toString();
+      final colorStr = r['color']?.toString() ?? '#3B82F6';
+      final iconStr = r['icon']?.toString() ?? '👥';
+      // backend populates the creator as `createdBy`
+      final leader =
+          r['createdBy'] ?? r['leader'] ?? r['creator'] ?? r['owner'];
+      final leaderId = (leader is Map)
+          ? (leader['_id'] ?? leader['id'])
+          : leader;
+
+      // store current user id for leave operation
+      _currentUserId = currentUserId?.toString();
+
+      List<Map<String, dynamic>> members = [];
+      if (r['members'] is List) {
+        for (var m in (r['members'] as List)) {
+          // member may be a user object or wrapper
+          if (m is Map) {
+            final user = m['user'] ?? m; // handle {user: {...}} or direct user
+            final id = user != null
+                ? (user['_id'] ?? user['id']?.toString())
+                : null;
+            members.add({
+              'id': id,
+              'name': user != null ? (user['name'] ?? '') : (m['name'] ?? ''),
+              'role': (leaderId != null && id != null && id == leaderId)
+                  ? 'leader'
+                  : 'member',
+              'image': user != null
+                  ? (user['profilePic'] ?? 'assets/profile.jpg')
+                  : 'assets/profile.jpg',
+            });
+          }
+        }
+      }
+
+      setState(() {
+        _roomDisplayName = name;
+        _roomIcon = iconStr;
+        _roomColor = _parseColor(colorStr);
+        _members = members;
+        _isCurrentUserLeader =
+            (currentUserId != null &&
+            leaderId != null &&
+            currentUserId == leaderId);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
+
+  Color _parseColor(String? color) {
+    if (color == null) return const Color(0xFFE6F8F0);
+    try {
+      String hexColor = color.toString().toUpperCase().replaceAll('#', '');
+      if (hexColor.length == 6) {
+        hexColor = 'FF$hexColor';
+      } else if (hexColor.length == 8) {
+        // already ARGB
+      } else {
+        throw Exception('Invalid hex length');
+      }
+      final colorValue = int.parse(hexColor, radix: 16);
+      return Color(colorValue);
+    } catch (e) {
+      print('Error parsing room color $color: $e');
+      return const Color(0xFFE6F8F0);
+    }
   }
 
   void _sortMembers() {
@@ -137,59 +261,230 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
   }
 
   void _removeMember(int index) {
-    setState(() {
-      _members.removeAt(index);
-    });
+    final member = _members[index];
+    final memberId = member['id']?.toString();
+
+    if (_roomId != null && memberId != null) {
+      // Confirm removal
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            'Remove member?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'Are you sure you want to remove ${member['name']} from this room?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await _api_service_removeMember(memberId);
+                  await _loadRoomDetails();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${member['name']} removed')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to remove member: $e')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+              ),
+              child: Text(
+                'Remove',
+                style: GoogleFonts.poppins(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      setState(() {
+        _members.removeAt(index);
+      });
+    }
+  }
+
+  Future<void> _api_service_removeMember(String memberId) async {
+    // wrapper to call ApiService
+    await _api_service_removeMember_impl(memberId);
+  }
+
+  Future<void> _api_service_removeMember_impl(String memberId) async {
+    await _apiService.removeMemberFromRoom(_roomId!, memberId);
   }
 
   void _navigateToAddFriends() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const SelectFriendsPage()),
+      MaterialPageRoute(
+        builder: (context) => const SelectFriendsPage(
+          initialSelectedFriends: <Map<String, dynamic>>[],
+        ),
+      ),
     );
-
     if (result != null && result is List<Map<String, dynamic>>) {
-      setState(() {
-        for (var newFriend in result) {
-          bool exists = _members.any((m) => m['name'] == newFriend['name']);
-          if (!exists) {
-            _members.add({
-              'name': newFriend['name'],
-              'role': 'member',
-              'image': newFriend['image'] ?? 'assets/profile.jpg',
-            });
+      // If we have a roomId, call backend to add members, else mutate local list
+      final selected = result;
+      if (_roomId != null) {
+        try {
+          final memberIds = selected
+              .map<String?>((s) => s['id']?.toString())
+              .whereType<String>()
+              .toList();
+          if (memberIds.isNotEmpty) {
+            await _apiService.addMembersToRoom(_roomId!, memberIds);
+            await _loadRoomDetails();
           }
+        } catch (e) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to add members: $e')));
         }
-        _sortMembers();
-      });
+      } else {
+        setState(() {
+          for (var newFriend in selected) {
+            bool exists = _members.any((m) => m['name'] == newFriend['name']);
+            if (!exists) {
+              _members.add({
+                'name': newFriend['name'],
+                'role': 'member',
+                'image': newFriend['image'] ?? 'assets/profile.jpg',
+              });
+            }
+          }
+          _sortMembers();
+        });
+      }
     }
   }
 
   void _confirmDeleteRoom() {
     showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text("Delete Room?", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-          content: Text("Are you sure you want to delete '${widget.roomName}'? This cannot be undone.", style: GoogleFonts.poppins()),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey))
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          "Delete Room?",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "Are you sure you want to delete '${widget.roomName}'? This cannot be undone.",
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              "Cancel",
+              style: GoogleFonts.poppins(color: Colors.grey),
             ),
-            ElevatedButton(
-                onPressed: () {
-                  // Backend logic here (TOIMPLEMENT)
-                  Navigator.pop(ctx); // Close Dialog
-                  Navigator.pop(context); // Close Page
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx); // Close Dialog
+              if (_roomId != null) {
+                try {
+                  await _apiService.deleteRoom(_roomId!);
+                  if (!mounted) return;
+                  Navigator.pop(context, true); // Close Page and signal success
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Room deleted successfully")),
                   );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                child: Text("Delete", style: GoogleFonts.poppins(color: Colors.white))
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete room: $e')),
+                  );
+                }
+              } else {
+                // fallback local behavior - close and signal change
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Room deleted successfully")),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(
+              "Delete",
+              style: GoogleFonts.poppins(color: Colors.white),
             ),
-          ],
-        )
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLeaveRoom() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          "Leave Room?",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "Are you sure you want to leave '${_roomDisplayName}'? You will no longer see this room.",
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              "Cancel",
+              style: GoogleFonts.poppins(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              // If we have roomId and currentUserId, call API to remove member
+              if (_roomId != null && _currentUserId != null) {
+                try {
+                  await _apiService.removeMemberFromRoom(
+                    _roomId!,
+                    _currentUserId!,
+                  );
+                  if (!mounted) return;
+                  // Close the page and signal parent to refresh (user left the room)
+                  Navigator.pop(context, true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('You left the room')),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to leave room: $e')),
+                  );
+                }
+              } else {
+                // local fallback
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You left the room')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(
+              "Leave",
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -231,9 +526,16 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   value: 'delete',
                   child: Row(
                     children: [
-                      const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
-                      Text("Delete Room", style: GoogleFonts.poppins(color: Colors.red)),
+                      Text(
+                        "Delete Room",
+                        style: GoogleFonts.poppins(color: Colors.red),
+                      ),
                     ],
                   ),
                 ),
@@ -245,35 +547,117 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(vertical: 20 * scale, horizontal: 25 * scale),
+            padding: EdgeInsets.symmetric(
+              vertical: 20 * scale,
+              horizontal: 25 * scale,
+            ),
             child: Align(
               alignment: Alignment.center,
               child: Column(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(15 * scale),
+                    width: 80 * scale,
+                    height: 80 * scale,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: _roomColor.withOpacity(0.8),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.meeting_room, color: Colors.white, size: 40 * scale),
+                    child: Center(
+                      child: Text(
+                        _roomIcon,
+                        style: TextStyle(
+                          fontSize: 40 * scale,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ),
                   SizedBox(height: 10 * scale),
                   Text(
-                    widget.roomName,
+                    _roomDisplayName,
                     style: GoogleFonts.poppins(
                       fontSize: 24 * scale,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  Text(
-                    "${_members.length} Members",
-                    style: GoogleFonts.poppins(
-                      fontSize: 14 * scale,
-                      color: Colors.white70,
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
+                  else
+                    Text(
+                      "${_members.length} Members",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14 * scale,
+                        color: Colors.white70,
+                      ),
                     ),
-                  ),
+                  SizedBox(height: 8 * scale),
+                  if (_isCurrentUserLeader)
+                    SizedBox(
+                      width: 160 * scale,
+                      child: ElevatedButton(
+                        onPressed: _confirmDeleteRoom,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12 * scale),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              size: 16 * scale,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 8 * scale),
+                            Text(
+                              'Delete Room',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 13 * scale,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+  width: 160 * scale,
+  child: ElevatedButton(
+    onPressed: _confirmLeaveRoom,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.redAccent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12 * scale),
+      ),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.exit_to_app,
+          size: 16 * scale,
+          color: Colors.white,
+        ),
+        SizedBox(width: 8 * scale),
+        Text(
+          'Leave Room',
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontSize: 13 * scale,
+          ),
+        ),
+      ],
+    ),
+  ),
+),
                 ],
               ),
             ),
@@ -306,14 +690,21 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                         GestureDetector(
                           onTap: _navigateToAddFriends,
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12 * scale,
+                              vertical: 6 * scale,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF00D09E),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.person_add, color: Colors.white, size: 16 * scale),
+                                Icon(
+                                  Icons.person_add,
+                                  color: Colors.white,
+                                  size: 16 * scale,
+                                ),
                                 SizedBox(width: 5 * scale),
                                 Text(
                                   "Add",
@@ -332,13 +723,19 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   SizedBox(height: 15 * scale),
 
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _members.length,
-                      physics: const BouncingScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        return _buildMemberTile(_members[index], index, scale);
-                      },
-                    ),
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ListView.builder(
+                            itemCount: _members.length,
+                            physics: const BouncingScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return _buildMemberTile(
+                                _members[index],
+                                index,
+                                scale,
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -349,7 +746,11 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     );
   }
 
-  Widget _buildMemberTile(Map<String, dynamic> member, int index, double scale) {
+  Widget _buildMemberTile(
+    Map<String, dynamic> member,
+    int index,
+    double scale,
+  ) {
     bool isLeader = member['role'] == 'leader';
 
     return Container(
@@ -366,16 +767,27 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         ],
       ),
       child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 16 * scale, vertical: 8 * scale),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: 16 * scale,
+          vertical: 8 * scale,
+        ),
         leading: GestureDetector(
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const OthersProfileViewPage()),
+              MaterialPageRoute(
+                builder: (context) =>
+                    OthersProfileViewPage(userId: member['id']?.toString()),
+              ),
             );
           },
           child: CircleAvatar(
-            backgroundImage: AssetImage(member['image']),
+            backgroundImage:
+                member['image'] != null &&
+                    member['image'].toString().startsWith('http')
+                ? NetworkImage(member['image']) as ImageProvider
+                : AssetImage(member['image'] ?? 'assets/profile.jpg')
+                      as ImageProvider,
             radius: 24 * scale,
           ),
         ),
@@ -388,30 +800,30 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         ),
         subtitle: isLeader
             ? Text(
-          "Leader",
-          style: GoogleFonts.poppins(
-            fontSize: 12 * scale,
-            color: const Color(0xFF00D09E),
-            fontWeight: FontWeight.w600,
-          ),
-        )
+                "Leader",
+                style: GoogleFonts.poppins(
+                  fontSize: 12 * scale,
+                  color: const Color(0xFF00D09E),
+                  fontWeight: FontWeight.w600,
+                ),
+              )
             : null,
 
         trailing: (_isCurrentUserLeader && !isLeader)
-            ? PopupMenuButton<String>(
-          icon: Icon(Icons.more_vert, color: Colors.grey, size: 20 * scale),
-          onSelected: (value) {
-            if (value == 'remove') {
-              _removeMember(index);
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'remove',
-              child: Text("Remove from list?", style: GoogleFonts.poppins()),
-            ),
-          ],
-        )
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => _removeMember(index),
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                      size: 20 * scale,
+                    ),
+                    tooltip: 'Remove member',
+                  ),
+                ],
+              )
             : null,
       ),
     );

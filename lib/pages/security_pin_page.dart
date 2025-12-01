@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'new_password_page.dart';
+import '../services/api_service.dart';
 
 class SecurityPinPage extends StatefulWidget {
-  const SecurityPinPage({super.key});
+  final String? email;
+
+  const SecurityPinPage({super.key, this.email});
 
   @override
   State<SecurityPinPage> createState() => _SecurityPinPageState();
@@ -11,7 +14,9 @@ class SecurityPinPage extends StatefulWidget {
 
 class _SecurityPinPageState extends State<SecurityPinPage> {
   String _pin = ''; // stores entered digits
-  final int _pinLength = 4; // change to 6 for 6-digit PIN
+  final int _pinLength = 6; // change to 6 for 6-digit PIN
+  final ApiService _api = ApiService();
+  bool _resendLoading = false;
 
   void _addDigit(String digit) {
     if (_pin.length < _pinLength) {
@@ -126,14 +131,16 @@ class _SecurityPinPageState extends State<SecurityPinPage> {
                           width: 200,
                           height: 50,
                           child: ElevatedButton(
-                            //navigates to new password page
+                            // navigates to new password page, passing email and entered PIN
                             onPressed: _pin.length == _pinLength
                                 ? () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) =>
-                                            const NewPasswordPage(),
+                                        builder: (context) => NewPasswordPage(
+                                          email: widget.email,
+                                          providedCode: _pin,
+                                        ),
                                       ),
                                     );
                                   }
@@ -162,13 +169,61 @@ class _SecurityPinPageState extends State<SecurityPinPage> {
                           width: 200,
                           height: 50,
                           child: OutlinedButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Code sent again."),
-                                ),
-                              );
-                            },
+                            onPressed: _resendLoading
+                                ? null
+                                : () async {
+                                    if (widget.email == null ||
+                                        widget.email!.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Missing email to resend code',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    setState(() => _resendLoading = true);
+                                    try {
+                                      final resp = await _api
+                                          .sendForgotPasswordCode(
+                                            widget.email!,
+                                          );
+                                      if (resp['success'] == true) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Code sent again — check your email',
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              resp['message'] ??
+                                                  'Failed to resend code',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    } finally {
+                                      if (mounted)
+                                        setState(() => _resendLoading = false);
+                                    }
+                                  },
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(
                                 color: Color(0xFF00B686),
@@ -179,14 +234,22 @@ class _SecurityPinPageState extends State<SecurityPinPage> {
                               ),
                               backgroundColor: Colors.white,
                             ),
-                            child: const Text(
-                              "Send Again",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF00B686),
-                              ),
-                            ),
+                            child: _resendLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Send Again",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF00B686),
+                                    ),
+                                  ),
                           ),
                         ),
                       ],

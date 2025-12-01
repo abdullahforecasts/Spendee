@@ -1,176 +1,268 @@
-// import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts.dart';
-//
-// class TripDetailsPage extends StatelessWidget {
-//   const TripDetailsPage({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFF00D09E),
-//       appBar: AppBar(
-//         backgroundColor: const Color(0xFF00D09E),
-//         elevation: 0,
-//         title: Text("Spendee", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-//       ),
-//       body: Container(
-//         width: double.infinity,
-//         decoration: const BoxDecoration(
-//           color: Color(0xFFE6F8F0),
-//           borderRadius: BorderRadius.only(
-//             topLeft: Radius.circular(60),
-//             topRight: Radius.circular(60),
-//           ),
-//         ),
-//         padding: const EdgeInsets.all(25),
-//         child: Column(
-//           children: [
-//             const SizedBox(height: 15),
-//             Row(
-//               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//               children: [
-//                 Text(
-//                   "Murree Trip",
-//                   style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),
-//                 ),
-//                 Text("Rs. 32,000", style: GoogleFonts.poppins(fontSize: 16)),
-//               ],
-//             ),
-//             const SizedBox(height: 20),
-//             const CircleAvatar(
-//               radius: 35,
-//               backgroundImage: AssetImage('assets/profile.jpg'),
-//             ),
-//             const SizedBox(height: 8),
-//             Text("Ali Maqsood", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-//             const SizedBox(height: 25),
-//             _buildMemberCard("Anas Faisal", "Unpaid", "Rs. 8000"),
-//             _buildMemberCard("Abdullah", "Paid", "Rs. 8000"),
-//             _buildMemberCard("Israr Hussain", "Unpaid", "Rs. 8000"),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _buildMemberCard(String name, String status, String amount) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       padding: const EdgeInsets.all(15),
-//       decoration: BoxDecoration(
-//         color: const Color(0xFF00D09E),
-//         borderRadius: BorderRadius.circular(15),
-//       ),
-//       child: Row(
-//         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//         children: [
-//           Row(
-//             children: [
-//               const CircleAvatar(
-//                 backgroundImage: AssetImage('assets/profile.jpg'),
-//                 radius: 20,
-//               ),
-//               const SizedBox(width: 10),
-//               Text(name,
-//                   style: GoogleFonts.poppins(
-//                       fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)),
-//             ],
-//           ),
-//           Text(
-//             "$status • $amount",
-//             style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-
+// ...existing code...
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'others_profile.dart'; // Import for profile navigation
+import 'package:url_launcher/url_launcher.dart';
+import '../services/api_service.dart';
+import '../utils/user_model.dart';
 
 class TripDetailsPage extends StatefulWidget {
-  const TripDetailsPage({super.key});
+  final String groupId;
+
+  const TripDetailsPage({Key? key, required this.groupId}) : super(key: key);
 
   @override
   State<TripDetailsPage> createState() => _TripDetailsPageState();
 }
 
 class _TripDetailsPageState extends State<TripDetailsPage> {
-  // --- STATE ---
-  // Default to true (Creator View), toggle via Eye icon to test Member View
-  bool _isCreator = true;
+  final ApiService _apiService = ApiService();
 
-  // Creator's Preferred Banks (Mock)
-  final List<String> _creatorPreferredBanks = ['JazzCash', 'Meezan Bank', 'Sadapay'];
+  GroupModel? _group;
+  UserModel? _currentUser;
+  bool _isLoading = false;
+  String _errorMessage = '';
 
-  // My (User's) Payment Accounts (Mock)
-  final List<Map<String, dynamic>> _myAccounts = [
-    {'bank': 'JazzCash', 'number': '0300-1234567', 'title': 'My Jazz Personal'},
-    {'bank': 'HBL', 'number': '1234-5678-9012', 'title': 'HBL Freedom'},
-    {'bank': 'Sadapay', 'number': '0312-3456789', 'title': 'My SadaPay'},
-  ];
+  // For user's saved payment methods
+  List<Map<String, dynamic>> _myPaymentMethods = [];
 
-  // Group Members Data
-  final List<Map<String, dynamic>> _members = [
-    {'id': '1', 'name': 'Ali Maqsood', 'amount': 5000, 'isPaid': false, 'image': 'assets/profile.jpg'},
-    {'id': '2', 'name': 'Abdullah', 'amount': 5000, 'isPaid': true, 'image': 'assets/profile.jpg'},
-    {'id': '3', 'name': 'Anas Faisal', 'amount': 5000, 'isPaid': false, 'image': 'assets/profile.jpg'},
-    {'id': '4', 'name': 'Hassan', 'amount': 5000, 'isPaid': false, 'image': 'assets/profile.jpg'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
-  // --- LOGIC ---
-
-  void _togglePaidStatus(int index, bool value) {
+  Future<void> _loadData() async {
     setState(() {
-      _members[index]['isPaid'] = value;
+      _isLoading = true;
+      _errorMessage = '';
     });
+
+    try {
+      // Load current user
+      final profileData = await _apiService.getProfile();
+      _currentUser = UserModel.fromJson(profileData['user']);
+
+      // Load group details
+      // debug: log the target URL
+      try {
+        // ApiService exposes baseUrl as a static const
+        // ignore: avoid_print
+        print('Fetching group details for id=${widget.groupId}');
+      } catch (_) {}
+
+      final groupData = await _apiService.getGroupDetails(widget.groupId);
+      _group = GroupModel.fromJson(groupData);
+
+      // Load user's payment methods
+      final paymentMethodsData = await _apiService.getMyPaymentMethods();
+      _myPaymentMethods = List<Map<String, dynamic>>.from(paymentMethodsData);
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      // Try to extract JSON message if present
+      String message = e.toString().replaceAll('Exception: ', '');
+      try {
+        final decoded = message.startsWith('{') ? jsonDecode(message) : null;
+        if (decoded != null && decoded['message'] != null) {
+          message = decoded['message'];
+        }
+      } catch (_) {}
+
+      setState(() {
+        _errorMessage = message;
+        _isLoading = false;
+      });
+      // also show a SnackBar for immediate feedback
+      try {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      } catch (_) {}
+    }
   }
 
-  // Check if I have an account for a specific bank
-  bool _doIHaveBank(String bankName) {
-    return _myAccounts.any((account) => account['bank'] == bankName);
+  bool get _isCreator =>
+      _currentUser != null &&
+      _group != null &&
+      _group!.leader.id == _currentUser!.id;
+
+  Future<void> _markAsPaid(String memberId, double amount) async {
+    try {
+      await _apiService.markPayment(widget.groupId, memberId, amount);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment marked successfully!'),
+          backgroundColor: Color(0xFF00D09E),
+        ),
+      );
+
+      _loadData(); // Refresh
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  // Get my accounts for a specific bank
-  List<Map<String, dynamic>> _getMyAccountsForBank(String bankName) {
-    return _myAccounts.where((account) => account['bank'] == bankName).toList();
+  Future<void> _launchPaymentLink(String deepLink) async {
+    final Uri url = Uri.parse(deepLink);
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open payment app'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  // --- UI ACTIONS ---
+  void _showMarkPaidDialog(GroupMemberModel member) {
+    final TextEditingController amountController = TextEditingController(
+      text: (member.shareAmount - member.amountPaid).toStringAsFixed(0),
+    );
 
-  void _confirmDeleteGroup() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Delete Group?", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to delete this group? This cannot be undone.", style: GoogleFonts.poppins()),
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Mark Payment',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Member: ${member.user.name}', style: GoogleFonts.poppins()),
+            const SizedBox(height: 10),
+            Text(
+              'Amount to pay: Rs. ${(member.shareAmount - member.amountPaid).toStringAsFixed(0)}',
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Amount Paid',
+                prefixText: 'Rs. ',
+                filled: true,
+                fillColor: const Color(0xFFF5F6FA),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey)),
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(ctx); // Close Dialog
-              Navigator.pop(context); // Go back to Home Page
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Group deleted successfully")),
-              );
+              final amount = double.tryParse(amountController.text) ?? 0;
+              if (amount > 0) {
+                Navigator.pop(context);
+                _markAsPaid(member.user.id, amount);
+              }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text("Delete", style: GoogleFonts.poppins(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00D09E),
+            ),
+            child: Text(
+              'Mark as Paid',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- UI BUILDERS ---
+  void _confirmDeleteGroup() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          "Delete Group?",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "Are you sure you want to delete this group? This cannot be undone.",
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              "Cancel",
+              style: GoogleFonts.poppins(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.deleteGroup(widget.groupId);
+                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(context, true); // Go back and refresh
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Group deleted successfully")),
+                );
+              } catch (e) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(
+              "Delete",
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Check if user has account for a specific bank
+  bool _doIHaveBank(String bankType) {
+    return _myPaymentMethods.any((method) => method['type'] == bankType);
+  }
+
+  // Get user's accounts for a specific bank
+  List<Map<String, dynamic>> _getMyAccountsForBank(String bankType) {
+    return _myPaymentMethods
+        .where((method) => method['type'] == bankType)
+        .toList();
+  }
 
   void _showPaymentDialog() {
+    if (_group == null || _group!.paymentMethods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No payment methods available')),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -186,7 +278,10 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
             children: [
               Text(
                 "Select Payment Method",
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
@@ -195,37 +290,69 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
               ),
               const SizedBox(height: 20),
 
-              // List of Creator's Banks
-              ..._creatorPreferredBanks.map((bank) {
-                final bool isAvailable = _doIHaveBank(bank);
+              // List Creator's Payment Methods
+              ..._group!.paymentMethods.map((method) {
+                final bool isAvailable = _doIHaveBank(method.type);
+                IconData icon;
+
+                switch (method.type) {
+                  case 'jazzcash':
+                    icon = Icons.account_balance_wallet;
+                    break;
+                  case 'easypaisa':
+                    icon = Icons.account_balance_wallet;
+                    break;
+                  case 'bank':
+                    icon = Icons.account_balance;
+                    break;
+                  default:
+                    icon = Icons.payment;
+                }
+
                 return ListTile(
                   enabled: isAvailable,
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isAvailable ? const Color(0xFFE6F8F0) : Colors.grey.shade100,
+                      color: isAvailable
+                          ? const Color(0xFFE6F8F0)
+                          : Colors.grey.shade100,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.account_balance,
-                      color: isAvailable ? const Color(0xFF00D09E) : Colors.grey,
+                      icon,
+                      color: isAvailable
+                          ? const Color(0xFF00D09E)
+                          : Colors.grey,
                       size: 20,
                     ),
                   ),
                   title: Text(
-                    bank,
+                    method.accountTitle ?? method.type.toUpperCase(),
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       color: isAvailable ? Colors.black : Colors.grey,
                     ),
                   ),
-                  trailing: isAvailable
-                      ? const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54)
+                  subtitle: method.accountNumber != null
+                      ? Text(
+                          method.accountNumber!,
+                          style: GoogleFonts.poppins(fontSize: 11),
+                        )
                       : null,
-                  onTap: isAvailable ? () {
-                    Navigator.pop(context); // Close first sheet
-                    _showMyAccountsDialog(bank); // Open second sheet
-                  } : null,
+                  trailing: isAvailable
+                      ? const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Colors.black54,
+                        )
+                      : null,
+                  onTap: isAvailable
+                      ? () {
+                          Navigator.pop(context);
+                          _showMyAccountsDialog(method.type, method);
+                        }
+                      : null,
                 );
               }).toList(),
             ],
@@ -235,8 +362,11 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
     );
   }
 
-  void _showMyAccountsDialog(String bankName) {
-    final myRelevantAccounts = _getMyAccountsForBank(bankName);
+  void _showMyAccountsDialog(
+    String bankType,
+    PaymentMethodModel creatorMethod,
+  ) {
+    final myRelevantAccounts = _getMyAccountsForBank(bankType);
 
     showModalBottomSheet(
       context: context,
@@ -252,8 +382,11 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Pay via $bankName",
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                "Pay via ${bankType.toUpperCase()}",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
@@ -264,15 +397,28 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
 
               ...myRelevantAccounts.map((account) {
                 return ListTile(
-                  leading: const Icon(Icons.credit_card, color: Color(0xFF00D09E)),
-                  title: Text(account['title'], style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                  subtitle: Text(account['number'], style: GoogleFonts.poppins(fontSize: 12)),
+                  leading: const Icon(
+                    Icons.credit_card,
+                    color: Color(0xFF00D09E),
+                  ),
+                  title: Text(
+                    account['accountTitle'] ?? 'My Account',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    account['accountNumber'] ?? '',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                  ),
                   trailing: const Icon(Icons.send, color: Color(0xFF00D09E)),
-                  onTap: () {
-                    print("TO IMPLEMENT: Deep link to $bankName app with account ${account['number']}");
+                  onTap: () async {
+                    if (creatorMethod.deepLink != null) {
+                      await _launchPaymentLink(creatorMethod.deepLink!);
+                    }
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Launching $bankName...")),
+                      SnackBar(
+                        content: Text("Launching ${bankType.toUpperCase()}..."),
+                      ),
                     );
                   },
                 );
@@ -286,10 +432,60 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF00D09E),
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+    if (_errorMessage.isNotEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF00D09E),
+        appBar: AppBar(backgroundColor: const Color(0xFF00D09E), elevation: 0),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.white),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  _errorMessage,
+                  style: GoogleFonts.poppins(color: Colors.white),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              ElevatedButton(
+                onPressed: _loadData,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+                child: Text(
+                  'Retry',
+                  style: GoogleFonts.poppins(color: const Color(0xFF00D09E)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_group == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF00D09E),
+        body: const Center(child: Text('Group not found')),
+      );
+    }
+
+    // Sort members: unpaid first for creator view
+    List<GroupMemberModel> sortedMembers = List.from(_group!.members);
     if (_isCreator) {
-      _members.sort((a, b) {
-        if (a['isPaid'] == b['isPaid']) return 0;
-        return a['isPaid'] ? 1 : -1; // Paid goes to bottom
+      sortedMembers.sort((a, b) {
+        if (a.hasPaid == b.hasPaid) return 0;
+        return a.hasPaid ? 1 : -1; // Paid goes to bottom
       });
     }
 
@@ -312,41 +508,34 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
           ),
         ),
         actions: [
-          // Toggle View Button (For Testing)
-          IconButton(
-            tooltip: "Toggle View (Creator/Member)",
-            icon: Icon(
-              _isCreator ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white70,
-              size: 20,
-            ),
-            onPressed: () {
-              setState(() {
-                _isCreator = !_isCreator;
-              });
-            },
-          ),
-          // Three Dots Menu -> Delete Group
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (value) {
-              if (value == 'delete') {
-                _confirmDeleteGroup();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                    const SizedBox(width: 10),
-                    Text("Delete Group", style: GoogleFonts.poppins(color: Colors.red)),
-                  ],
+          if (_isCreator)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _confirmDeleteGroup();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        "Delete Group",
+                        style: GoogleFonts.poppins(color: Colors.red),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
       body: Column(
@@ -357,7 +546,7 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
             child: Column(
               children: [
                 Text(
-                  "Murree Trip",
+                  _group!.name,
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -365,7 +554,11 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
                   ),
                 ),
                 Text(
-                  _isCreator ? "Total: Rs. 20,000" : "Your Share: Rs. 5,000",
+                  _isCreator
+                      ? "Total: Rs. ${_group!.goalAmount.toStringAsFixed(0)}"
+                      : _currentUser != null
+                      ? "Your Share: Rs. ${_group!.members.firstWhere((m) => m.user.id == _currentUser!.id, orElse: () => _group!.members.first).shareAmount.toStringAsFixed(0)}"
+                      : "Rs. ${_group!.goalAmount.toStringAsFixed(0)}",
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     color: Colors.white70,
@@ -402,7 +595,10 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
                       ),
                       Text(
                         _isCreator ? "(Creator View)" : "(Member View)",
-                        style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -410,12 +606,16 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
 
                   // Members List
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _members.length,
-                      physics: const BouncingScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        return _buildMemberTile(_members[index], index);
-                      },
+                    child: RefreshIndicator(
+                      onRefresh: _loadData,
+                      color: const Color(0xFF00D09E),
+                      child: ListView.builder(
+                        itemCount: sortedMembers.length,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemBuilder: (context, index) {
+                          return _buildMemberTile(sortedMembers[index]);
+                        },
+                      ),
                     ),
                   ),
 
@@ -454,8 +654,8 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
     );
   }
 
-  Widget _buildMemberTile(Map<String, dynamic> member, int index) {
-    bool isPaid = member['isPaid'];
+  Widget _buildMemberTile(GroupMemberModel member) {
+    bool isPaid = member.hasPaid;
     bool isGrayedOut = _isCreator && isPaid;
 
     return Opacity(
@@ -477,18 +677,14 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
         ),
         child: Row(
           children: [
-            // PROFILE NAVIGATION
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const OthersProfileViewPage()),
-                );
-              },
-              child: CircleAvatar(
-                backgroundImage: AssetImage(member['image']),
-                radius: 22,
-              ),
+            // Profile Picture
+            CircleAvatar(
+              backgroundImage:
+                  member.user.profilePic != null &&
+                      member.user.profilePic!.startsWith('http')
+                  ? NetworkImage(member.user.profilePic!)
+                  : const AssetImage('assets/profile.jpg') as ImageProvider,
+              radius: 22,
             ),
             const SizedBox(width: 15),
             Expanded(
@@ -496,7 +692,7 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    member['name'],
+                    member.user.name,
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -518,7 +714,7 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
             // CREATOR VIEW: Show Amount + Switch
             if (_isCreator) ...[
               Text(
-                "Rs. ${member['amount']}",
+                "Rs. ${member.shareAmount.toStringAsFixed(0)}",
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
@@ -529,12 +725,21 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
               Switch(
                 value: isPaid,
                 activeColor: const Color(0xFF00D09E),
-                onChanged: (val) => _togglePaidStatus(index, val),
+                onChanged: (val) {
+                  if (val && !isPaid) {
+                    // Mark as paid
+                    _markAsPaid(
+                      member.user.id,
+                      member.shareAmount - member.amountPaid,
+                    );
+                  }
+                },
               ),
-            ]
+            ],
           ],
         ),
       ),
     );
   }
 }
+// ...existing code...

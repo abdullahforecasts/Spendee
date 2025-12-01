@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../utils/session.dart';
 
 class AddPaymentAccountPage extends StatefulWidget {
   const AddPaymentAccountPage({super.key});
@@ -19,12 +22,14 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
     'Sadapay',
     'Nayapay',
     'Allied Bank',
-    'Bank Alfalah'
+    'Bank Alfalah',
   ];
 
   String? _selectedBank;
   String _selectedIdType = 'Account Number'; // Default selection
   final TextEditingController _numberController = TextEditingController();
+  bool _setAsDefault = false;
+  final String baseUrl = "http://192.168.100.12:3000/api";
 
   // Validation & Add Logic
   void _addAccount() {
@@ -49,14 +54,71 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
       }
     }
 
-    // Success
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$_selectedBank account added successfully!'),
-        backgroundColor: const Color(0xFF00D09E),
-      ),
+    // Submit to backend
+    _submitPaymentMethod(
+      _selectedBank!,
+      number,
+      _selectedIdType == 'IBAN',
+      _setAsDefault,
     );
-    Navigator.pop(context);
+  }
+
+  Future<void> _submitPaymentMethod(
+    String bank,
+    String value,
+    bool isIban,
+    bool isDefault,
+  ) async {
+    if (Session.authHeader == null) {
+      _showSnack('Not authenticated');
+      return;
+    }
+
+    final uri = Uri.parse('$baseUrl/users/payment-methods');
+
+    final Map<String, dynamic> body = {};
+
+    // map bank to type
+    final bankLower = bank.toLowerCase();
+    if (bankLower.contains('jazz'))
+      body['type'] = 'jazzcash';
+    else if (bankLower.contains('easy') || bankLower.contains('easypaisa'))
+      body['type'] = 'easypaisa';
+    else if (bankLower.contains('naya'))
+      body['type'] = 'nayapay';
+    else if (bankLower.contains('sada') || bankLower.contains('sadapay'))
+      body['type'] = 'sadapay';
+    else
+      body['type'] = 'bank';
+
+    body['accountTitle'] = bank;
+    if (isIban)
+      body['iban'] = value;
+    else
+      body['accountNumber'] = value;
+    body['isDefault'] = isDefault;
+
+    try {
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        _showSnack(data['message'] ?? 'Payment method added');
+        Navigator.pop(context);
+      } else {
+        _showSnack(data['message'] ?? 'Failed to add payment method');
+      }
+    } catch (e) {
+      _showSnack('Network error: $e');
+    }
   }
 
   void _showSnack(String msg) {
@@ -75,7 +137,10 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
           children: [
             // Header
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20 * scale, vertical: 20 * scale),
+              padding: EdgeInsets.symmetric(
+                horizontal: 20 * scale,
+                vertical: 20 * scale,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
@@ -100,6 +165,18 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            // Set as default
+            Row(
+              children: [
+                Checkbox(
+                  value: _setAsDefault,
+                  onChanged: (v) => setState(() => _setAsDefault = v ?? false),
+                ),
+                const SizedBox(width: 8),
+                Text('Set as default', style: GoogleFonts.poppins()),
+              ],
             ),
 
             // White Container
@@ -134,7 +211,9 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                             // 1. Bank/Account Dropdown
                             _buildLabel("Bank/Account"),
                             Container(
-                              padding: EdgeInsets.symmetric(horizontal: 15 * scale),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 15 * scale,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF5F6FA),
                                 borderRadius: BorderRadius.circular(15),
@@ -142,16 +221,28 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
                                   value: _selectedBank,
-                                  hint: Text("Select Bank/Account", style: GoogleFonts.poppins(color: Colors.grey.shade400)),
+                                  hint: Text(
+                                    "Select Bank/Account",
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
                                   isExpanded: true,
-                                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                                  icon: const Icon(
+                                    Icons.keyboard_arrow_down,
+                                    color: Colors.grey,
+                                  ),
                                   items: _bankOptions.map((String value) {
                                     return DropdownMenuItem<String>(
                                       value: value,
-                                      child: Text(value, style: GoogleFonts.poppins()),
+                                      child: Text(
+                                        value,
+                                        style: GoogleFonts.poppins(),
+                                      ),
                                     );
                                   }).toList(),
-                                  onChanged: (val) => setState(() => _selectedBank = val),
+                                  onChanged: (val) =>
+                                      setState(() => _selectedBank = val),
                                 ),
                               ),
                             ),
@@ -186,7 +277,9 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                                   // Prefix for Account Number
                                   if (_selectedIdType == 'Account Number')
                                     Padding(
-                                      padding: EdgeInsets.only(left: 16 * scale),
+                                      padding: EdgeInsets.only(
+                                        left: 16 * scale,
+                                      ),
                                       child: Text(
                                         "+92 ",
                                         style: GoogleFonts.poppins(
@@ -200,28 +293,38 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                                   Expanded(
                                     child: TextField(
                                       controller: _numberController,
-                                      keyboardType: _selectedIdType == 'Account Number'
+                                      keyboardType:
+                                          _selectedIdType == 'Account Number'
                                           ? TextInputType.number
                                           : TextInputType.text,
-                                      textCapitalization: TextCapitalization.characters,
+                                      textCapitalization:
+                                          TextCapitalization.characters,
                                       inputFormatters: [
-                                        if (_selectedIdType == 'Account Number') ...[
-                                          FilteringTextInputFormatter.digitsOnly,
+                                        if (_selectedIdType ==
+                                            'Account Number') ...[
+                                          FilteringTextInputFormatter
+                                              .digitsOnly,
                                           LengthLimitingTextInputFormatter(10),
                                         ] else ...[
-                                          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                                          FilteringTextInputFormatter.allow(
+                                            RegExp(r'[a-zA-Z0-9]'),
+                                          ),
                                           LengthLimitingTextInputFormatter(24),
-                                        ]
+                                        ],
                                       ],
                                       decoration: InputDecoration(
-                                        hintText: _selectedIdType == 'Account Number'
+                                        hintText:
+                                            _selectedIdType == 'Account Number'
                                             ? "3001234567"
                                             : "PK36MEZN...",
-                                        hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 14),
+                                        hintStyle: GoogleFonts.poppins(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 14,
+                                        ),
                                         border: InputBorder.none,
                                         contentPadding: EdgeInsets.symmetric(
-                                            vertical: 16 * scale,
-                                            horizontal: 16 * scale
+                                          vertical: 16 * scale,
+                                          horizontal: 16 * scale,
                                         ),
                                       ),
                                     ),
@@ -245,7 +348,7 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                             color: const Color(0xFF00D09E).withOpacity(0.3),
                             blurRadius: 10,
                             offset: const Offset(0, 5),
-                          )
+                          ),
                         ],
                       ),
                       child: ElevatedButton(
@@ -292,9 +395,14 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected ? [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)
-            ] : [],
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                    ),
+                  ]
+                : [],
           ),
           alignment: Alignment.center,
           child: Text(

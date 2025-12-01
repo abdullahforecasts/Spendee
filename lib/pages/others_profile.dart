@@ -1,8 +1,66 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
-class OthersProfileViewPage extends StatelessWidget {
-  const OthersProfileViewPage({super.key});
+import '../utils/session.dart';
+
+class OthersProfileViewPage extends StatefulWidget {
+  // optional identifier (uuid or user id). If null, page shows placeholder/defaults.
+  final String? userId;
+  const OthersProfileViewPage({super.key, this.userId});
+
+  @override
+  State<OthersProfileViewPage> createState() => _OthersProfileViewPageState();
+}
+
+class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
+  String? name;
+  String? uid;
+  String? profilePicUrl;
+  bool _loading = false;
+  final String baseUrl = 'http://192.168.100.12:3000/api';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.userId != null) _fetchUser(widget.userId!);
+  }
+
+  Future<void> _fetchUser(String query) async {
+    if (Session.authHeader == null) return;
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/users/search?query=${Uri.encodeComponent(query)}',
+      );
+      final resp = await http.get(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true &&
+            data['users'] != null &&
+            (data['users'] as List).isNotEmpty) {
+          final u = data['users'][0];
+          setState(() {
+            name = u['name'] as String? ?? name;
+            uid = u['uuid'] as String? ?? uid;
+            profilePicUrl = u['profilePic'] as String? ?? profilePicUrl;
+          });
+        }
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,6 +71,9 @@ class OthersProfileViewPage extends StatelessWidget {
     const Color primaryColor = Color(0xFF00D09E);
     const Color lightGreen = Color(0xFFC9F8DC);
     const Color backgroundColor = Color(0xFFFFFFFF);
+
+    final displayName = name ?? "Ali Maqsood";
+    final displayUid = uid ?? "ABCDE123";
 
     return Scaffold(
       backgroundColor: primaryColor,
@@ -58,7 +119,11 @@ class OthersProfileViewPage extends StatelessWidget {
                 ),
                 child: isLandscape
                     ? _buildLandscapeLayout()
-                    : _buildPortraitLayout(),
+                    : _buildPortraitLayout(
+                        displayName,
+                        displayUid,
+                        profilePicUrl,
+                      ),
               ),
             ),
           );
@@ -67,7 +132,11 @@ class OthersProfileViewPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPortraitLayout() {
+  Widget _buildPortraitLayout(
+    String displayName,
+    String displayUid,
+    String? profilePic,
+  ) {
     return SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -75,38 +144,27 @@ class OthersProfileViewPage extends StatelessWidget {
         children: [
           const Text(
             "Profile",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 25,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 25),
           ),
           const SizedBox(height: 25),
 
           Stack(
             alignment: Alignment.bottomRight,
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 70,
-                // FIXED: Corrected asset path
-                backgroundImage: AssetImage('assets/profile.jpg'),
+                backgroundImage: profilePic != null
+                    ? NetworkImage(profilePic) as ImageProvider
+                    : const AssetImage('assets/profile.jpg'),
               ),
-              // Optional: You can remove this edit icon container if
-              // you don't want any icon on a generic profile.
-              // Leaving it out based on "Others Profile" logic usually implies read-only.
             ],
           ),
           const SizedBox(height: 35),
 
-          _buildFixedTile(
-            label: "Name",
-            value: "Ali Maqsood", // Hardcoded or passed via constructor
-          ),
+          _buildFixedTile(label: "Name", value: displayName),
           const SizedBox(height: 20),
 
-          _buildFixedTile(
-            label: "UID",
-            value: "ABCDE123",
-          ),
+          _buildFixedTile(label: "UID", value: displayUid),
           const SizedBox(height: 20),
         ],
       ),
@@ -125,10 +183,7 @@ class OthersProfileViewPage extends StatelessWidget {
             children: [
               const Text(
                 "Profile",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 25,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 25),
               ),
               const SizedBox(height: 20),
               const CircleAvatar(
@@ -158,15 +213,9 @@ class OthersProfileViewPage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildFixedTile(
-                  label: "Name",
-                  value: "Ali Maqsood",
-                ),
+                _buildFixedTile(label: "Name", value: "Ali Maqsood"),
                 const SizedBox(height: 20),
-                _buildFixedTile(
-                  label: "UID",
-                  value: "ABCDE123",
-                ),
+                _buildFixedTile(label: "UID", value: "ABCDE123"),
               ],
             ),
           ),
@@ -175,10 +224,7 @@ class OthersProfileViewPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFixedTile({
-    required String label,
-    required String value,
-  }) {
+  Widget _buildFixedTile({required String label, required String value}) {
     const Color primaryColor = Color(0xFF00D09E);
     const Color lightGreen = Color(0xFFC9F8DC);
 
@@ -188,10 +234,7 @@ class OthersProfileViewPage extends StatelessWidget {
         color: lightGreen,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 3,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -208,9 +251,10 @@ class OthersProfileViewPage extends StatelessWidget {
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 14),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -219,10 +263,7 @@ class OthersProfileViewPage extends StatelessWidget {
             child: Text(
               value,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
         ],

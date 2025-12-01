@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:spendee/pages/welcome_page.dart';
 import 'new_password_page.dart';
 
 class VerificationPinPage extends StatefulWidget {
@@ -17,7 +18,7 @@ class _VerificationPinPageState extends State<VerificationPinPage> {
   final int _pinLength = 6; 
   bool _isLoading = false;
 
-  final String baseUrl = "http://192.168.X.X:3000/api";
+  final String baseUrl = "http://192.168.100.12:3000/api";
 
   void _addDigit(String digit) {
     if (_pin.length < _pinLength) {
@@ -84,7 +85,7 @@ class _VerificationPinPageState extends State<VerificationPinPage> {
         );
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const NewPasswordPage()),
+          MaterialPageRoute(builder: (context) => const LoginPage()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -141,7 +142,8 @@ class _VerificationPinPageState extends State<VerificationPinPage> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(30.0),
-                  child: Column(
+                  child: SingleChildScrollView(
+                    child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 50),
@@ -228,6 +230,7 @@ class _VerificationPinPageState extends State<VerificationPinPage> {
                         ),
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),

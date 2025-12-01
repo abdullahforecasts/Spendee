@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/api_service.dart';
+import 'security_pin_page.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -9,6 +11,9 @@ class ForgotPasswordPage extends StatefulWidget {
 }
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+  final _emailController = TextEditingController();
+  final ApiService _api = ApiService();
+  bool _loading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +51,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color.fromARGB(255, 138, 135, 135).withValues(),
+                      color: const Color.fromARGB(
+                        255,
+                        138,
+                        135,
+                        135,
+                      ).withValues(),
                       spreadRadius: 1,
                       blurRadius: 10,
                       offset: const Offset(0, -2),
@@ -56,9 +66,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(30.0),
                   child: SingleChildScrollView(
-
                     child: Column(
-
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 80),
@@ -74,11 +82,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
                         Text(
                           'Enter your email to reset your password',
-                            style: GoogleFonts.poppins(
+                          style: GoogleFonts.poppins(
                             fontSize: 10,
                             fontWeight: FontWeight.w400,
-                              color: Colors.black,
-                            ),
+                            color: Colors.black,
+                          ),
                         ),
                         const SizedBox(height: 70),
                         Text(
@@ -91,18 +99,19 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         ),
                         const SizedBox(height: 8),
                         TextField(
+                          controller: _emailController,
                           decoration: InputDecoration(
                             hintText: 'enter your email',
                             filled: true,
                             fillColor: const Color(0xFFE6F8F0),
                             contentPadding: const EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 16),
+                              vertical: 16,
+                              horizontal: 16,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
                               borderSide: BorderSide.none,
                             ),
-
-
                           ),
                         ),
                         const SizedBox(height: 44),
@@ -110,27 +119,87 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushNamed(context, '/security-pin');
-                            },
+                            onPressed: _loading
+                                ? null
+                                : () async {
+                                    final email = _emailController.text.trim();
+                                    if (email.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Please enter your email',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    setState(() => _loading = true);
+                                    try {
+                                      final resp = await _api
+                                          .sendForgotPasswordCode(email);
+                                      if (resp['success'] == true) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Code sent — check your email',
+                                            ),
+                                          ),
+                                        );
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                SecurityPinPage(email: email),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              resp['message'] ??
+                                                  'Unable to send code',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    } finally {
+                                      if (mounted)
+                                        setState(() => _loading = false);
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF00B686),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(30),
                               ),
                             ),
-                            // Next Step button, when pressed navigates to the next page
-                            child: const Text(
-                              'Next Step',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            // Next Step button, when pressed sends code and navigates
+                            child: _loading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Text(
+                                    'Next Step',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 8),
-
 
                         const SizedBox(height: 8),
                         Center(
@@ -165,8 +234,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           child: CircleAvatar(
                             radius: 20,
                             backgroundColor: Colors.grey.shade200,
-                            child: const Icon(Icons.g_mobiledata,
-                                size: 30, color: Colors.black),
+                            child: const Icon(
+                              Icons.g_mobiledata,
+                              size: 30,
+                              color: Colors.black,
+                            ),
                           ),
                         ),
 

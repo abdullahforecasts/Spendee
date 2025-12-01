@@ -86,7 +86,6 @@
 //   }
 // }
 
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animations/animations.dart';
@@ -112,14 +111,18 @@ class MainNavigationPage extends StatefulWidget {
 
 class _MainNavigationPageState extends State<MainNavigationPage> {
   int _currentIndex = 0;
+  // Key to access HomePage state for refreshing after group creation
+  final GlobalKey _homeKey = GlobalKey();
+  // Key to access RoomsPage state for refreshing after room create/delete
+  final GlobalKey _roomsKey = GlobalKey();
 
   // Mock Notification Count
   int get _unreadNotificationsCount => 10;
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    RoomsPage(),
-    FriendsPage(),
+  late final List<Widget> _pages = [
+    HomePage(key: _homeKey),
+    RoomsPage(key: _roomsKey),
+    const FriendsPage(),
   ];
 
   @override
@@ -160,10 +163,19 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                         color: Colors.red,
                         shape: BoxShape.circle,
                       ),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
                       child: Text(
-                        _unreadNotificationsCount > 9 ? '9+' : '$_unreadNotificationsCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                        _unreadNotificationsCount > 9
+                            ? '9+'
+                            : '$_unreadNotificationsCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -181,7 +193,9 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
             icon: const Icon(Icons.more_vert, color: Colors.black),
             onSelected: (value) {
               if (value == 'logout') {
-                Navigator.of(context).pushNamedAndRemoveUntil('/launch', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/launch', (route) => false);
               }
             },
             itemBuilder: (context) => [
@@ -191,7 +205,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                   children: [
                     const Icon(Icons.logout, color: Colors.redAccent, size: 20),
                     const SizedBox(width: 10),
-                    Text("Log Out", style: GoogleFonts.poppins(color: Colors.redAccent)),
+                    Text(
+                      "Log Out",
+                      style: GoogleFonts.poppins(color: Colors.redAccent),
+                    ),
                   ],
                 ),
               ),
@@ -216,14 +233,22 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF008B6C), Color(0xFF00D09E), Color(0xFF7FFFD4)],
+                    colors: [
+                      Color(0xFF008B6C),
+                      Color(0xFF00D09E),
+                      Color(0xFF7FFFD4),
+                    ],
                     stops: [0.0, 0.5, 1.0],
                   ),
                 ),
                 child: Center(
                   child: Text(
                     'Spendee',
-                    style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
+                    style: GoogleFonts.poppins(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
               ),
@@ -234,18 +259,41 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.notifications, color: Color(0xFF00D09E)),
-                        title: Text('Notifications', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+                        leading: const Icon(
+                          Icons.notifications,
+                          color: Color(0xFF00D09E),
+                        ),
+                        title: Text(
+                          'Notifications',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         trailing: _unreadNotificationsCount > 0
                             ? Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: const Color(0xFF00D09E), borderRadius: BorderRadius.circular(12)),
-                          child: Text('$_unreadNotificationsCount', style: GoogleFonts.poppins(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                        )
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00D09E),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$_unreadNotificationsCount',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
                             : null,
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationsPage(),
+                            ),
+                          );
                         },
                       ),
                       // "Add Friend" REMOVED from here as requested
@@ -260,10 +308,16 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               // Help (Fixed at Bottom)
               ListTile(
                 leading: const Icon(Icons.help, color: Color(0xFF00D09E)),
-                title: Text('Help', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+                title: Text(
+                  'Help',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
                 onTap: () {
                   Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpPage()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HelpPage()),
+                  );
                 },
               ),
             ],
@@ -272,10 +326,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       ),
 
       // --- BODY ---
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
 
       // --- DYNAMIC FAB ---
       floatingActionButton: _getFabForIndex(_currentIndex),
@@ -292,7 +343,10 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.meeting_room), label: "Rooms"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.meeting_room),
+            label: "Rooms",
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: "Friends"),
         ],
       ),
@@ -302,32 +356,54 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
   Widget? _getFabForIndex(int index) {
     if (index == 0) {
       // Home -> Create Group
-      return OpenContainer(
+      return OpenContainer<bool>(
         transitionDuration: const Duration(milliseconds: 500),
         openElevation: 0,
         closedElevation: 6,
-        closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+        closedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(50),
+        ),
         closedColor: const Color(0xFF00B686),
         openColor: const Color(0xFFE6F8F0),
         openBuilder: (context, _) => const GroupCreationPage(),
+        onClosed: (result) {
+          if (result == true) {
+            // Ask HomePage to refresh its data
+            try {
+              (_homeKey.currentState as dynamic)?.refreshData();
+            } catch (_) {}
+          }
+        },
+
         closedBuilder: (context, openContainer) => FloatingActionButton(
           onPressed: openContainer,
+          heroTag: 'main_fab_home',
           backgroundColor: const Color(0xFF00B686),
           child: const Icon(Icons.add, color: Colors.white),
         ),
       );
     } else if (index == 1) {
       // Rooms -> Create Room
-      return OpenContainer(
+      return OpenContainer<bool>(
         transitionDuration: const Duration(milliseconds: 500),
         openElevation: 0,
         closedElevation: 6,
-        closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+        closedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(50),
+        ),
         closedColor: const Color(0xFF00B686),
         openColor: const Color(0xFFE6F8F0),
         openBuilder: (context, _) => const CreateRoomPage(),
+        onClosed: (result) {
+          if (result == true) {
+            try {
+              (_roomsKey.currentState as dynamic)?.refreshData();
+            } catch (_) {}
+          }
+        },
         closedBuilder: (context, openContainer) => FloatingActionButton(
           onPressed: openContainer,
+          heroTag: 'main_fab_rooms',
           backgroundColor: const Color(0xFF00B686),
           child: const Icon(Icons.add, color: Colors.white),
         ),

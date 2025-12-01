@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'add_payment_account_page.dart';
 import 'specific_payment_account_page.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import '../utils/session.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -15,32 +20,25 @@ class _ProfilePageState extends State<ProfilePage> {
   String name = "Israr Hussain";
   final nameController = TextEditingController();
 
+  // Profile data
+  String uid = "";
+  String? profilePicUrl;
+  File? _newProfileImage;
+  final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
+
+  final String baseUrl = "http://192.168.100.12:3000/api";
+
   // --- NEW DATA & LOGIC START ---
-  final List<Map<String, dynamic>> _paymentAccounts = [
-    {
-      'id': '1',
-      'name': 'JazzCash',
-      'number': '0300-1234567',
-    },
-    {
-      'id': '2',
-      'name': 'HBL',
-      'number': '1234-5678-9012-3456',
-    },
-    {
-      'id': '3',
-      'name': 'JazzCash',
-      'number': '0312-3456789',
-    },
-  ];
+  // Loaded from backend
+  List<Map<String, dynamic>> _paymentAccounts = [];
 
   Map<String, List<Map<String, dynamic>>> get _groupedAccounts {
     Map<String, List<Map<String, dynamic>>> grouped = {};
     for (var account in _paymentAccounts) {
-      if (!grouped.containsKey(account['name'])) {
-        grouped[account['name']] = [];
-      }
-      grouped[account['name']]!.add(account);
+      final name = account['accountTitle'] ?? account['type'] ?? 'Other';
+      if (!grouped.containsKey(name)) grouped[name] = [];
+      grouped[name]!.add(account);
     }
     return grouped;
   }
@@ -55,10 +53,13 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _navigateToAddPaymentAccount() {
+    // Navigate to add page and refresh list when returning
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AddPaymentAccountPage()),
-    );
+    ).then((_) {
+      _fetchPaymentMethods();
+    });
   }
   // --- NEW DATA & LOGIC END ---
 
@@ -66,12 +67,212 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     nameController.text = name;
+    _fetchProfile();
+    _fetchPaymentMethods();
   }
 
   @override
   void dispose() {
     nameController.dispose();
     super.dispose();
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _fetchProfile() async {
+    if (Session.authHeader == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final uri = Uri.parse('$baseUrl/auth/profile');
+      final resp = await http.get(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+      );
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          setState(() {
+            final fetchedName = (user['name'] ?? this.name) as String;
+            this.name = fetchedName;
+            uid = (user['uuid'] ?? '') as String;
+            profilePicUrl = user['profilePic'] as String?;
+            nameController.text = fetchedName;
+          });
+        }
+      } else {
+        final data = jsonDecode(resp.body);
+        _showSnack(data['message'] ?? 'Failed to fetch profile');
+      }
+    } catch (e) {
+      _showSnack('Network error: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPaymentMethods() async {
+    if (Session.authHeader == null) return;
+    try {
+      final uri = Uri.parse('$baseUrl/users/payment-methods');
+      final resp = await http.get(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+      );
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true && data['paymentMethods'] != null) {
+          final List serverList = data['paymentMethods'];
+          setState(() {
+            _paymentAccounts = serverList.map((m) {
+              // normalize to a map with consistent keys
+              return {
+                '_id': m['_id'] ?? m['id'],
+                'type': m['type'],
+                'accountTitle': m['accountTitle'] ?? m['name'],
+                'accountNumber': m['accountNumber'] ?? m['number'],
+                'iban': m['iban'],
+                'bankName': m['bankName'],
+                'isDefault': m['isDefault'] ?? false,
+              };
+            }).toList();
+          });
+        }
+      } else {
+        // ignore silently or show toast
+      }
+    } catch (e) {
+      // ignore for now
+    }
+  }
+
+  Future<void> _deletePaymentMethod(String methodId) async {
+    if (Session.authHeader == null) return;
+    try {
+      final uri = Uri.parse('$baseUrl/users/payment-methods/$methodId');
+      final resp = await http.delete(
+        uri,
+        headers: {
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+      );
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] == true) {
+          _showSnack(data['message'] ?? 'Deleted');
+          await _fetchPaymentMethods();
+        }
+      } else {
+        final data = jsonDecode(resp.body);
+        _showSnack(data['message'] ?? 'Delete failed');
+      }
+    } catch (e) {
+      _showSnack('Network error: $e');
+    }
+  }
+
+  Future<void> _updatePaymentMethod(
+    String methodId,
+    String? accountTitle,
+    String? value,
+    String? iban,
+    bool isDefault,
+  ) async {
+    if (Session.authHeader == null) return;
+
+    try {
+      final uri = Uri.parse('$baseUrl/users/payment-methods/$methodId');
+
+      final Map<String, dynamic> body = {};
+      if (accountTitle != null) body['accountTitle'] = accountTitle;
+      if (value != null && value.isNotEmpty) {
+        if (iban != null && iban.isNotEmpty)
+          body['iban'] = value;
+        else
+          body['accountNumber'] = value;
+      }
+      body['isDefault'] = isDefault;
+
+      final resp = await http.patch(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'client': 'not-browser',
+          'authorization': Session.authHeader!,
+        },
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(resp.body);
+      if (resp.statusCode == 200) {
+        _showSnack(data['message'] ?? 'Payment method updated');
+        await _fetchPaymentMethods();
+      } else {
+        _showSnack(data['message'] ?? 'Update failed');
+      }
+    } catch (e) {
+      _showSnack('Network error: $e');
+    }
+  }
+
+  Future<void> _updateProfile({String? name, File? imageFile}) async {
+    if (Session.authHeader == null) {
+      _showSnack('Not authenticated');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final uri = Uri.parse('$baseUrl/auth/profile');
+      final request = http.MultipartRequest('PATCH', uri);
+      request.headers['client'] = 'not-browser';
+      request.headers['authorization'] = Session.authHeader!;
+
+      if (name != null) request.fields['name'] = name;
+
+      if (imageFile != null) {
+        final mf = await http.MultipartFile.fromPath(
+          'profilePic',
+          imageFile.path,
+        );
+        request.files.add(mf);
+      }
+
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          setState(() {
+            final updatedName = (user['name'] ?? this.name) as String;
+            this.name = updatedName;
+            uid = (user['uuid'] ?? uid) as String;
+            profilePicUrl = user['profilePic'] as String? ?? profilePicUrl;
+            nameController.text = updatedName;
+          });
+          _showSnack(data['message'] ?? 'Profile updated');
+        }
+      } else {
+        final data = jsonDecode(response.body);
+        _showSnack(data['message'] ?? 'Update failed');
+      }
+    } catch (e) {
+      _showSnack('Network error: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -150,19 +351,18 @@ class _ProfilePageState extends State<ProfilePage> {
           // ---------------------------------------------
           const Text(
             "Your Profile",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 25,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 25),
           ),
           const SizedBox(height: 25),
 
           Stack(
             alignment: Alignment.bottomRight,
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 70,
-                backgroundImage: AssetImage('assets/profile.jpg'),
+                backgroundImage: profilePicUrl != null
+                    ? NetworkImage(profilePicUrl!) as ImageProvider
+                    : const AssetImage('assets/profile.jpg'),
               ),
               Container(
                 decoration: BoxDecoration(
@@ -172,12 +372,20 @@ class _ProfilePageState extends State<ProfilePage> {
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
                       blurRadius: 5,
-                    )
+                    ),
                   ],
                 ),
                 child: IconButton(
                   icon: const Icon(Icons.edit, color: Colors.black),
-                  onPressed: () {},
+                  onPressed: () async {
+                    final picked = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                    );
+                    if (picked != null) {
+                      final file = File(picked.path);
+                      await _updateProfile(imageFile: file);
+                    }
+                  },
                 ),
               ),
             ],
@@ -189,21 +397,24 @@ class _ProfilePageState extends State<ProfilePage> {
             value: name,
             controller: nameController,
             isEditing: isEditingName,
-            onToggle: () {
+            onToggle: () async {
               setState(() {
                 if (isEditingName) {
-                  name = nameController.text.trim();
+                  // will be handled after toggling
                 }
                 isEditingName = !isEditingName;
               });
+              if (!isEditingName) {
+                final newName = nameController.text.trim();
+                if (newName.isNotEmpty && newName != name) {
+                  await _updateProfile(name: newName);
+                }
+              }
             },
           ),
           const SizedBox(height: 20),
 
-          _buildFixedTile(
-            label: "UID",
-            value: "ABCDE123",
-          ),
+          _buildFixedTile(label: "UID", value: uid.isNotEmpty ? uid : '—'),
 
           // ---------------------------------------------
           // NEW LOWER PART (Payment Methods & Button)
@@ -235,7 +446,9 @@ class _ProfilePageState extends State<ProfilePage> {
               List<Map<String, dynamic>> accounts = _groupedAccounts[key]!;
 
               // Helper to get initials (e.g. JazzCash -> JC)
-              String initials = key.length >= 2 ? key.substring(0, 2).toUpperCase() : key.substring(0, 1).toUpperCase();
+              String initials = key.length >= 2
+                  ? key.substring(0, 2).toUpperCase()
+                  : key.substring(0, 1).toUpperCase();
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -245,9 +458,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   border: Border.all(color: Colors.grey.shade200),
                 ),
                 child: Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     leading: Container(
                       width: 50,
                       height: 50,
@@ -259,9 +477,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Text(
                           initials,
                           style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              fontSize: 16),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -273,16 +492,200 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     children: accounts.map((account) {
+                      final displayId =
+                          account['ac countNumber'] ?? account['iban'] ?? '—';
                       return ListTile(
                         onTap: () => _navigateToSpecificPaymentAccount(account),
-                        contentPadding: const EdgeInsets.only(left: 70, right: 20, bottom: 5),
-                        title: Text(
-                          account['number'],
-                          style: GoogleFonts.poppins(
-                              fontSize: 14, color: Colors.black87),
+                        contentPadding: const EdgeInsets.only(
+                          left: 70,
+                          right: 12,
+                          bottom: 5,
                         ),
-                        trailing: const Icon(Icons.arrow_forward_ios,
-                            size: 14, color: Colors.grey),
+                        title: Text(
+                          displayId,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        subtitle: account['isDefault'] == true
+                            ? Text(
+                                'Default',
+                                style: TextStyle(
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                color: Colors.black54,
+                                size: 20,
+                              ),
+                              onPressed: () async {
+                                // Edit dialog
+                                final updated =
+                                    await showDialog<Map<String, dynamic>>(
+                                      context: context,
+                                      builder: (context) {
+                                        final titleController =
+                                            TextEditingController(
+                                              text:
+                                                  account['accountTitle']
+                                                      ?.toString() ??
+                                                  '',
+                                            );
+                                        final numberController =
+                                            TextEditingController(
+                                              text:
+                                                  account['accountNumber'] ??
+                                                  account['iban'] ??
+                                                  '',
+                                            );
+                                        bool isIban =
+                                            account['iban'] != null &&
+                                            (account['iban'] as String)
+                                                .isNotEmpty;
+                                        bool isDefault =
+                                            account['isDefault'] == true;
+                                        return StatefulBuilder(
+                                          builder: (context, setState) =>
+                                              AlertDialog(
+                                                title: const Text(
+                                                  'Edit payment method',
+                                                ),
+                                                content: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    TextField(
+                                                      controller:
+                                                          titleController,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                            labelText: 'Title',
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    TextField(
+                                                      controller:
+                                                          numberController,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                            labelText:
+                                                                'Account/IBAN',
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      children: [
+                                                        Checkbox(
+                                                          value: isDefault,
+                                                          onChanged: (v) =>
+                                                              setState(
+                                                                () =>
+                                                                    isDefault =
+                                                                        v ??
+                                                                        false,
+                                                              ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        const Text(
+                                                          'Set as default',
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(context),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      Navigator.pop(context, {
+                                                        'accountTitle':
+                                                            titleController.text
+                                                                .trim(),
+                                                        'value':
+                                                            numberController
+                                                                .text
+                                                                .trim(),
+                                                        'isDefault': isDefault,
+                                                      });
+                                                    },
+                                                    child: const Text('Save'),
+                                                  ),
+                                                ],
+                                              ),
+                                        );
+                                      },
+                                    );
+                                if (updated != null) {
+                                  final id = account['_id']?.toString();
+                                  if (id != null) {
+                                    await _updatePaymentMethod(
+                                      id,
+                                      updated['accountTitle'] as String?,
+                                      updated['value'] as String?,
+                                      null,
+                                      updated['isDefault'] == true,
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                                size: 20,
+                              ),
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Delete payment method'),
+                                    content: const Text(
+                                      'Are you sure you want to delete this payment method?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  final id = account['_id']?.toString();
+                                  if (id != null)
+                                    await _deletePaymentMethod(id);
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                          ],
+                        ),
                       );
                     }).toList(),
                   ),
@@ -303,7 +706,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: const Color(0xFF00D09E).withOpacity(0.3),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
-                )
+                ),
               ],
             ),
             child: ElevatedButton.icon(
@@ -352,10 +755,7 @@ class _ProfilePageState extends State<ProfilePage> {
         color: lightGreen,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 3,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -372,9 +772,10 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 14),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -382,33 +783,35 @@ class _ProfilePageState extends State<ProfilePage> {
           Expanded(
             child: isEditing
                 ? TextField(
-              controller: controller,
-              maxLength: 20,
-              maxLines: 1,
-              autofocus: true,
-              textAlignVertical: TextAlignVertical.center,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                counterText: '',
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                floatingLabelBehavior: FloatingLabelBehavior.never,
-              ),
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w500),
-              onSubmitted: (_) => onToggle(),
-            )
+                    controller: controller,
+                    maxLength: 20,
+                    maxLines: 1,
+                    autofocus: true,
+                    textAlignVertical: TextAlignVertical.center,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      counterText: '',
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      floatingLabelBehavior: FloatingLabelBehavior.never,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    onSubmitted: (_) => onToggle(),
+                  )
                 : Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
           ),
           IconButton(
             icon: Icon(
@@ -424,10 +827,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // 2. Original Fixed Tile (Upper Part)
-  Widget _buildFixedTile({
-    required String label,
-    required String value,
-  }) {
+  Widget _buildFixedTile({required String label, required String value}) {
     const Color primaryColor = Color(0xFF00D09E);
     const Color lightGreen = Color(0xFFC9F8DC);
 
@@ -437,10 +837,7 @@ class _ProfilePageState extends State<ProfilePage> {
         color: lightGreen,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 3,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -457,9 +854,10 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 14),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -468,10 +866,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Text(
               value,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
         ],

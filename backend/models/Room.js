@@ -1,64 +1,44 @@
 import mongoose from "mongoose";
 
 const roomSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+            minLength: 2,
+            maxLength: 50,
+        },
 
-    description: {
-      type: String,
-      default: "",
-      trim: true,
-    },
+        description: {
+            type: String,
+            default: "",
+            trim: true,
+            maxLength: 200,
+        },
 
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
 
-    members: [
-      {
-        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        contribution: { type: Number, default: 0 },
-        hasPaid: { type: Boolean, default: false },
-      },
-    ],
+        members: [{ 
+            type: mongoose.Schema.Types.ObjectId, 
+            ref: "User" 
+        }],
 
-    // Total pool info
-    goalAmount: {
-      type: Number,
-      required: true,
-    },
-    currentAmount: {
-      type: Number,
-      default: 0,
-    },
+        color: {
+            type: String,
+            default: '#3B82F6', // blue
+        },
 
-    deadline: {
-      type: Date,
-      default: null,
+        icon: {
+            type: String,
+            default: '👥',
+        },
     },
-
-    // Status can be: "active", "completed", or "cancelled"
-    status: {
-      type: String,
-      enum: ["active", "completed", "cancelled"],
-      default: "active",
-    },
-
-    messages: [
-      {
-        sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        text: String,
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
-  },
-  { timestamps: true }
+    { timestamps: true }
 );
 
 export default mongoose.model("Room", roomSchema);

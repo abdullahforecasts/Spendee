@@ -19,7 +19,7 @@ class _SpecificPaymentAccountPageState
     extends State<SpecificPaymentAccountPage> {
   Map<String, dynamic>? account;
   bool _loading = false;
-  final String baseUrl = "http://192.168.100.12:3000/api";
+  final String baseUrl = "http://172.16.21.123:3000/api";
 
   @override
   void initState() {

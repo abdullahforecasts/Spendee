@@ -36,6 +36,7 @@ dependencies:
   image_picker: ^1.0.7
   shared_preferences: ^2.5.3
   url_launcher: ^6.2.2
+  clipboard: ^2.0.2
 
   google_fonts: ^6.1.0
 

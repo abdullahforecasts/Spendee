@@ -16,7 +16,7 @@ class FriendsPage extends StatefulWidget {
 
 class _FriendsPageState extends State<FriendsPage> {
   final TextEditingController _searchController = TextEditingController();
-  final String baseUrl = 'http://192.168.100.12:3000/api';
+  final String baseUrl = 'http://172.16.21.123:3000/api';
   
   List<Map<String, dynamic>> friends = [];
   List<Map<String, dynamic>> _requests = [];

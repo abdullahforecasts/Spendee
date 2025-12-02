@@ -29,7 +29,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
 
-  final String baseUrl = "http://192.168.100.12:3000/api";
+  final String baseUrl = "http://172.16.21.123:3000/api";
 
   Future<void> _pickProfileImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);

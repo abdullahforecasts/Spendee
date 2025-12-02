@@ -15,7 +15,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   final TextEditingController _uidController = TextEditingController();
   final FocusNode _uidFocusNode = FocusNode();
 
-  final String baseUrl = 'http://192.168.100.12:3000/api';
+  final String baseUrl = 'http://172.16.21.123:3000/api';
 
   Map<String, dynamic>? _foundUser;
   bool _requestSent = false;
@@ -194,7 +194,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                     : null,
               ),
               style: GoogleFonts.poppins(fontSize: 16),
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
               maxLength: 8,
               onSubmitted: (value) {
                 if (value.length == 8) {

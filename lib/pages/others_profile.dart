@@ -20,7 +20,7 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
   String? uid;
   String? profilePicUrl;
   bool _loading = false;
-  final String baseUrl = 'http://192.168.100.12:3000/api';
+  final String baseUrl = 'http://172.16.21.123:3000/api';
 
   @override
   void initState() {
@@ -83,7 +83,6 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () {
-            // FIXED: Added navigation pop
             Navigator.pop(context);
           },
         ),
@@ -96,7 +95,6 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
           ),
         ),
         centerTitle: true,
-        // FIXED: Removed actions (three dots button)
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -104,7 +102,7 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
             bottom: false,
             child: Container(
               width: double.infinity,
-              height: constraints.maxHeight, // Take full available height
+              height: constraints.maxHeight,
               decoration: const BoxDecoration(
                 color: backgroundColor,
                 borderRadius: BorderRadius.only(
@@ -118,7 +116,11 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
                   vertical: isLandscape ? 20 : 30,
                 ),
                 child: isLandscape
-                    ? _buildLandscapeLayout()
+                    ? _buildLandscapeLayout(
+                        displayName,
+                        displayUid,
+                        profilePicUrl,
+                      )
                     : _buildPortraitLayout(
                         displayName,
                         displayUid,
@@ -171,7 +173,11 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
     );
   }
 
-  Widget _buildLandscapeLayout() {
+  Widget _buildLandscapeLayout(
+    String displayName,
+    String displayUid,
+    String? profilePic,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -186,10 +192,11 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 25),
               ),
               const SizedBox(height: 20),
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 60,
-                // FIXED: Corrected asset path
-                backgroundImage: AssetImage('assets/profile.jpg'),
+                backgroundImage: profilePic != null
+                    ? NetworkImage(profilePic) as ImageProvider
+                    : const AssetImage('assets/profile.jpg'),
               ),
             ],
           ),
@@ -213,9 +220,9 @@ class _OthersProfileViewPageState extends State<OthersProfileViewPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildFixedTile(label: "Name", value: "Ali Maqsood"),
+                _buildFixedTile(label: "Name", value: displayName),
                 const SizedBox(height: 20),
-                _buildFixedTile(label: "UID", value: "ABCDE123"),
+                _buildFixedTile(label: "UID", value: displayUid),
               ],
             ),
           ),

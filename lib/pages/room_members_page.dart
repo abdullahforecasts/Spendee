@@ -1,102 +1,4 @@
-// import 'package:flutter/material.dart';
-// import 'package:google_fonts/google_fonts.dart';
-//
-// class RoomMembersPage extends StatelessWidget {
-//   const RoomMembersPage({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFF00D09E),
-//       appBar: AppBar(
-//         backgroundColor: const Color(0xFF00D09E),
-//         elevation: 0,
-//         title: Text("Spendee", style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-//       ),
-//       body: Container(
-//         width: double.infinity,
-//         decoration: const BoxDecoration(
-//           color: Color(0xFFE6F8F0),
-//           borderRadius: BorderRadius.only(
-//             topLeft: Radius.circular(60),
-//             topRight: Radius.circular(60),
-//           ),
-//         ),
-//         padding: const EdgeInsets.all(25),
-//         child: Column(
-//           children: [
-//             const SizedBox(height: 10),
-//             Text("Room Name",
-//                 style: GoogleFonts.poppins(
-//                   fontSize: 22,
-//                   fontWeight: FontWeight.bold,
-//                   shadows: [
-//                     Shadow(
-//                       color: Colors.black.withOpacity(0.4),
-//                       offset: const Offset(2, 2),
-//                       blurRadius: 2,
-//                     ),
-//                   ],
-//                 )),
-//             const SizedBox(height: 5),
-//             Text("Total Members: 5",
-//                 style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54)),
-//             const SizedBox(height: 25),
-//             _buildMember("Anas Faisal"),
-//             _buildMember("Abdullah"),
-//             _buildMember("Israr Hussain"),
-//             _buildMember("Alia Bhatt"),
-//             _buildMember("Sharukh"),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _buildMember(String name) {
-//     return Container(
-//       margin: const EdgeInsets.only(bottom: 10),
-//       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-//       decoration: BoxDecoration(
-//         color: const Color(0xFF00D09E),
-//         borderRadius: BorderRadius.circular(12),
-//       ),
-//       child: Row(
-//         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//         children: [
-//           Row(
-//             children: [
-//               const CircleAvatar(
-//                 backgroundImage: AssetImage('assets/profile.jpg'),
-//                 radius: 20,
-//               ),
-//               const SizedBox(width: 10),
-//               Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text(name,
-//                       style: GoogleFonts.poppins(
-//                           color: Colors.white,
-//                           fontSize: 15,
-//                           fontWeight: FontWeight.w600)),
-//                   Text(
-//                     "Member since 10/2/2025",
-//                     style: GoogleFonts.poppins(
-//                       color: Colors.white70,
-//                       fontSize: 12,
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//             ],
-//           ),
-//           const Icon(Icons.more_vert, color: Colors.white),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
+// lib/pages/room_members_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
@@ -137,7 +39,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     if (_roomId != null) {
       _loadRoomDetails();
     } else {
-      // fallback to static members for UI while no id provided
       _members = [
         {
           'name': 'Ali Maqsood',
@@ -167,7 +68,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     });
 
     try {
-      // fetch current user to determine leader status
       final profile = await _apiService.getProfile();
       final currentUser = profile['user'];
       final currentUserId = currentUser != null
@@ -175,40 +75,30 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
           : null;
 
       final roomData = await _apiService.getRoomDetails(_roomId!);
-      // roomData expected to be a Map representing room
-      final r = roomData; // defensive alias
+      final r = roomData;
 
       final name = (r['name'] ?? r['title'] ?? widget.roomName).toString();
       final colorStr = r['color']?.toString() ?? '#3B82F6';
       final iconStr = r['icon']?.toString() ?? '👥';
-      // backend populates the creator as `createdBy`
-      final leader =
-          r['createdBy'] ?? r['leader'] ?? r['creator'] ?? r['owner'];
-      final leaderId = (leader is Map)
-          ? (leader['_id'] ?? leader['id'])
-          : leader;
+      final leader = r['createdBy'] ?? r['leader'] ?? r['creator'] ?? r['owner'];
+      final leaderId = (leader is Map) ? (leader['_id'] ?? leader['id']) : leader;
 
-      // store current user id for leave operation
       _currentUserId = currentUserId?.toString();
 
       List<Map<String, dynamic>> members = [];
       if (r['members'] is List) {
         for (var m in (r['members'] as List)) {
-          // member may be a user object or wrapper
-          if (m is Map) {
-            final user = m['user'] ?? m; // handle {user: {...}} or direct user
-            final id = user != null
-                ? (user['_id'] ?? user['id']?.toString())
-                : null;
+                      if (m is Map) {
+                        final user = m['user'] ?? m;
+            final id = user != null ? (user['_id'] ?? user['id']?.toString()) : null;
+            final uuid = user != null ? (user['uuid']?.toString()) : null;
+
             members.add({
               'id': id,
+              'uuid': uuid, // Store UUID separately
               'name': user != null ? (user['name'] ?? '') : (m['name'] ?? ''),
-              'role': (leaderId != null && id != null && id == leaderId)
-                  ? 'leader'
-                  : 'member',
-              'image': user != null
-                  ? (user['profilePic'] ?? 'assets/profile.jpg')
-                  : 'assets/profile.jpg',
+              'role': (leaderId != null && id != null && id == leaderId) ? 'leader' : 'member',
+              'image': user != null ? (user['profilePic'] ?? 'assets/profile.jpg') : 'assets/profile.jpg',
             });
           }
         }
@@ -219,12 +109,10 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         _roomIcon = iconStr;
         _roomColor = _parseColor(colorStr);
         _members = members;
-        _isCurrentUserLeader =
-            (currentUserId != null &&
-            leaderId != null &&
-            currentUserId == leaderId);
+        _isCurrentUserLeader = (currentUserId != null && leaderId != null && currentUserId == leaderId);
         _isLoading = false;
       });
+      _sortMembers();
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
@@ -247,7 +135,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
       final colorValue = int.parse(hexColor, radix: 16);
       return Color(colorValue);
     } catch (e) {
-      print('Error parsing room color $color: $e');
       return const Color(0xFFE6F8F0);
     }
   }
@@ -265,30 +152,21 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     final memberId = member['id']?.toString();
 
     if (_roomId != null && memberId != null) {
-      // Confirm removal
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(
-            'Remove member?',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-          ),
-          content: Text(
-            'Are you sure you want to remove ${member['name']} from this room?',
-          ),
+          title: Text('Remove member?', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+          content: Text('Are you sure you want to remove ${member['name']} from this room?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.poppins(color: Colors.grey),
-              ),
+              child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(ctx);
                 try {
-                  await _api_service_removeMember(memberId);
+                  await _apiService.removeMemberFromRoom(_roomId!, memberId);
                   await _loadRoomDetails();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('${member['name']} removed')),
@@ -299,13 +177,8 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-              ),
-              child: Text(
-                'Remove',
-                style: GoogleFonts.poppins(color: Colors.white),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              child: Text('Remove', style: GoogleFonts.poppins(color: Colors.white)),
             ),
           ],
         ),
@@ -315,15 +188,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         _members.removeAt(index);
       });
     }
-  }
-
-  Future<void> _api_service_removeMember(String memberId) async {
-    // wrapper to call ApiService
-    await _api_service_removeMember_impl(memberId);
-  }
-
-  Future<void> _api_service_removeMember_impl(String memberId) async {
-    await _apiService.removeMemberFromRoom(_roomId!, memberId);
   }
 
   void _navigateToAddFriends() async {
@@ -336,7 +200,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
       ),
     );
     if (result != null && result is List<Map<String, dynamic>>) {
-      // If we have a roomId, call backend to add members, else mutate local list
       final selected = result;
       if (_roomId != null) {
         try {
@@ -349,9 +212,9 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
             await _loadRoomDetails();
           }
         } catch (e) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to add members: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to add members: $e')),
+          );
         }
       } else {
         setState(() {
@@ -375,10 +238,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          "Delete Room?",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
+        title: Text("Delete Room?", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         content: Text(
           "Are you sure you want to delete '${widget.roomName}'? This cannot be undone.",
           style: GoogleFonts.poppins(),
@@ -386,19 +246,16 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              "Cancel",
-              style: GoogleFonts.poppins(color: Colors.grey),
-            ),
+            child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(ctx); // Close Dialog
+              Navigator.pop(ctx);
               if (_roomId != null) {
                 try {
                   await _apiService.deleteRoom(_roomId!);
                   if (!mounted) return;
-                  Navigator.pop(context, true); // Close Page and signal success
+                  Navigator.pop(context, true);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Room deleted successfully")),
                   );
@@ -409,7 +266,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   );
                 }
               } else {
-                // fallback local behavior - close and signal change
                 Navigator.pop(context, true);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Room deleted successfully")),
@@ -417,10 +273,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(
-              "Delete",
-              style: GoogleFonts.poppins(color: Colors.white),
-            ),
+            child: Text("Delete", style: GoogleFonts.poppins(color: Colors.white)),
           ),
         ],
       ),
@@ -431,10 +284,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          "Leave Room?",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
+        title: Text("Leave Room?", style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         content: Text(
           "Are you sure you want to leave '${_roomDisplayName}'? You will no longer see this room.",
           style: GoogleFonts.poppins(),
@@ -442,23 +292,15 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              "Cancel",
-              style: GoogleFonts.poppins(color: Colors.grey),
-            ),
+            child: Text("Cancel", style: GoogleFonts.poppins(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              // If we have roomId and currentUserId, call API to remove member
               if (_roomId != null && _currentUserId != null) {
                 try {
-                  await _apiService.removeMemberFromRoom(
-                    _roomId!,
-                    _currentUserId!,
-                  );
+                  await _apiService.removeMemberFromRoom(_roomId!, _currentUserId!);
                   if (!mounted) return;
-                  // Close the page and signal parent to refresh (user left the room)
                   Navigator.pop(context, true);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('You left the room')),
@@ -470,7 +312,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   );
                 }
               } else {
-                // local fallback
                 Navigator.pop(context, true);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('You left the room')),
@@ -478,10 +319,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: Text(
-              "Leave",
-              style: GoogleFonts.poppins(color: Colors.white),
-            ),
+            child: Text("Leave", style: GoogleFonts.poppins(color: Colors.white)),
           ),
         ],
       ),
@@ -512,7 +350,6 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // DELETE ROOM OPTION (Leader Only)
           if (_isCurrentUserLeader)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -526,16 +363,9 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   value: 'delete',
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                        size: 20,
-                      ),
+                      const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                       const SizedBox(width: 10),
-                      Text(
-                        "Delete Room",
-                        style: GoogleFonts.poppins(color: Colors.red),
-                      ),
+                      Text("Delete Room", style: GoogleFonts.poppins(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -547,10 +377,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(
-              vertical: 20 * scale,
-              horizontal: 25 * scale,
-            ),
+            padding: EdgeInsets.symmetric(vertical: 20 * scale, horizontal: 25 * scale),
             child: Align(
               alignment: Alignment.center,
               child: Column(
@@ -565,10 +392,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                     child: Center(
                       child: Text(
                         _roomIcon,
-                        style: TextStyle(
-                          fontSize: 40 * scale,
-                          color: Colors.white,
-                        ),
+                        style: TextStyle(fontSize: 40 * scale, color: Colors.white),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -590,10 +414,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                   else
                     Text(
                       "${_members.length} Members",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14 * scale,
-                        color: Colors.white70,
-                      ),
+                      style: GoogleFonts.poppins(fontSize: 14 * scale, color: Colors.white70),
                     ),
                   SizedBox(height: 8 * scale),
                   if (_isCurrentUserLeader)
@@ -610,18 +431,11 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.delete_outline,
-                              size: 16 * scale,
-                              color: Colors.white,
-                            ),
+                            Icon(Icons.delete_outline, size: 16 * scale, color: Colors.white),
                             SizedBox(width: 8 * scale),
                             Text(
                               'Delete Room',
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 13 * scale,
-                              ),
+                              style: GoogleFonts.poppins(color: Colors.white, fontSize: 13 * scale),
                             ),
                           ],
                         ),
@@ -629,35 +443,28 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                     )
                   else
                     SizedBox(
-  width: 160 * scale,
-  child: ElevatedButton(
-    onPressed: _confirmLeaveRoom,
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.redAccent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12 * scale),
-      ),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.exit_to_app,
-          size: 16 * scale,
-          color: Colors.white,
-        ),
-        SizedBox(width: 8 * scale),
-        Text(
-          'Leave Room',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontSize: 13 * scale,
-          ),
-        ),
-      ],
-    ),
-  ),
-),
+                      width: 160 * scale,
+                      child: ElevatedButton(
+                        onPressed: _confirmLeaveRoom,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12 * scale),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.exit_to_app, size: 16 * scale, color: Colors.white),
+                            SizedBox(width: 8 * scale),
+                            Text(
+                              'Leave Room',
+                              style: GoogleFonts.poppins(color: Colors.white, fontSize: 13 * scale),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -700,11 +507,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  Icons.person_add,
-                                  color: Colors.white,
-                                  size: 16 * scale,
-                                ),
+                                Icon(Icons.person_add, color: Colors.white, size: 16 * scale),
                                 SizedBox(width: 5 * scale),
                                 Text(
                                   "Add",
@@ -729,11 +532,7 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
                             itemCount: _members.length,
                             physics: const BouncingScrollPhysics(),
                             itemBuilder: (context, index) {
-                              return _buildMemberTile(
-                                _members[index],
-                                index,
-                                scale,
-                              );
+                              return _buildMemberTile(_members[index], index, scale);
                             },
                           ),
                   ),
@@ -746,86 +545,75 @@ class _RoomMembersPageState extends State<RoomMembersPage> {
     );
   }
 
-  Widget _buildMemberTile(
-    Map<String, dynamic> member,
-    int index,
-    double scale,
-  ) {
-    bool isLeader = member['role'] == 'leader';
+  Widget _buildMemberTile(Map<String, dynamic> member, int index, double scale) {
+  bool isLeader = member['role'] == 'leader';
+  
+  // ALWAYS use UUID for navigation, fallback to ID only if UUID is not available
+  final userId = member['uuid']?.toString() ?? member['id']?.toString();
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 12 * scale),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15 * scale),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 16 * scale,
-          vertical: 8 * scale,
+  return Container(
+    margin: EdgeInsets.only(bottom: 12 * scale),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(15 * scale),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 5,
+          offset: const Offset(0, 3),
         ),
-        leading: GestureDetector(
-          onTap: () {
+      ],
+    ),
+    child: ListTile(
+      contentPadding: EdgeInsets.symmetric(horizontal: 16 * scale, vertical: 8 * scale),
+      leading: GestureDetector(
+        onTap: () {
+          if (userId != null) {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) =>
-                    OthersProfileViewPage(userId: member['id']?.toString()),
+                builder: (context) => OthersProfileViewPage(
+                  userId: userId,  // Pass the identifier
+                ),
               ),
             );
-          },
-          child: CircleAvatar(
-            backgroundImage:
-                member['image'] != null &&
-                    member['image'].toString().startsWith('http')
-                ? NetworkImage(member['image']) as ImageProvider
-                : AssetImage(member['image'] ?? 'assets/profile.jpg')
-                      as ImageProvider,
-            radius: 24 * scale,
-          ),
+          }
+        },
+        child: CircleAvatar(
+          backgroundImage: member['image'] != null && member['image'].toString().startsWith('http')
+              ? NetworkImage(member['image']) as ImageProvider
+              : AssetImage(member['image'] ?? 'assets/profile.jpg') as ImageProvider,
+          radius: 24 * scale,
         ),
-        title: Text(
-          member['name'],
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 16 * scale,
-          ),
-        ),
-        subtitle: isLeader
-            ? Text(
-                "Leader",
-                style: GoogleFonts.poppins(
-                  fontSize: 12 * scale,
-                  color: const Color(0xFF00D09E),
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            : null,
-
-        trailing: (_isCurrentUserLeader && !isLeader)
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: () => _removeMember(index),
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: Colors.redAccent,
-                      size: 20 * scale,
-                    ),
-                    tooltip: 'Remove member',
-                  ),
-                ],
-              )
-            : null,
       ),
-    );
-  }
+      title: Text(
+        member['name'],
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16 * scale),
+      ),
+      subtitle: isLeader
+          ? Text(
+              "Leader",
+              style: GoogleFonts.poppins(
+                fontSize: 12 * scale,
+                color: const Color(0xFF00D09E),
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          : null,
+      trailing: (_isCurrentUserLeader && !isLeader)
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: () => _removeMember(index),
+                  icon: Icon(Icons.delete_outline, color: Colors.redAccent, size: 20 * scale),
+                  tooltip: 'Remove member',
+                ),
+              ],
+            )
+          : null,
+    ),
+  );
 }
+
+  }

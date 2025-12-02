@@ -29,7 +29,7 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
   String _selectedIdType = 'Account Number'; // Default selection
   final TextEditingController _numberController = TextEditingController();
   bool _setAsDefault = false;
-  final String baseUrl = "http://192.168.100.12:3000/api";
+  final String baseUrl = "http://172.16.21.123:3000/api";
 
   // Validation & Add Logic
   void _addAccount() {
@@ -42,8 +42,8 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
 
     if (_selectedIdType == 'Account Number') {
       // Must be exactly 10 digits (since +92 is fixed in UI)
-      if (number.length != 10) {
-        _showSnack('Account number must be 10 digits');
+      if (number.length != 11) {
+        _showSnack('Account number must be 11 digits');
         return;
       }
     } else {
@@ -304,7 +304,7 @@ class _AddPaymentAccountPageState extends State<AddPaymentAccountPage> {
                                             'Account Number') ...[
                                           FilteringTextInputFormatter
                                               .digitsOnly,
-                                          LengthLimitingTextInputFormatter(10),
+                                          LengthLimitingTextInputFormatter(11),
                                         ] else ...[
                                           FilteringTextInputFormatter.allow(
                                             RegExp(r'[a-zA-Z0-9]'),

@@ -25,7 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final String baseUrl = "http://192.168.100.12:3000/api";
+  final String baseUrl = "http://172.16.21.123:3000/api";
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));

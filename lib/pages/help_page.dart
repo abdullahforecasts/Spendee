@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'package:spendee/pages/feedback_submitted_page.dart';
+import '../services/api_service.dart';
 
 class HelpPage extends StatefulWidget {
   const HelpPage({super.key});
@@ -10,9 +11,12 @@ class HelpPage extends StatefulWidget {
   State<HelpPage> createState() => _HelpPageState();
 }
 
-class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin {
+class _HelpPageState extends State<HelpPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _problemController = TextEditingController();
   late AnimationController _shakeController;
+  final ApiService _apiService = ApiService();
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -31,24 +35,43 @@ class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin
   }
 
   void _submitProblem() {
-    if (_problemController.text.trim().isEmpty) {
+    final text = _problemController.text.trim();
+    if (text.isEmpty) {
       // Shake animation if no text
       _shakeController.forward(from: 0.0);
-    } else {
-      // Navigate to feedback page
-      Navigator.push(
+      return;
+    }
+
+    // Submit feedback to backend
+    _submitFeedback(text);
+  }
+
+  Future<void> _submitFeedback(String message) async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await _apiService.submitFeedback(message: message);
+      if (!mounted) return;
+      // Navigate to feedback submitted page
+      Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 500),
           pageBuilder: (_, __, ___) => const FeedbackSubmittedPage(),
           transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: child,
-            );
+            return FadeTransition(opacity: animation, child: child);
           },
         ),
       );
+    } catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit feedback: $msg')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -62,10 +85,7 @@ class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin
         centerTitle: true,
         title: Text(
           "Spendee",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 25,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 25),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
@@ -111,11 +131,16 @@ class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin
                       decoration: BoxDecoration(
                         color: const Color(0xFFE6F8F0),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF00D09E), width: 2),
+                        border: Border.all(
+                          color: const Color(0xFF00D09E),
+                          width: 2,
+                        ),
                       ),
                       child: TextField(
-                        keyboardType: TextInputType.multiline, // Important for multiline
-                        textInputAction: TextInputAction.done, // Enter key will be "Done
+                        keyboardType:
+                            TextInputType.multiline, // Important for multiline
+                        textInputAction:
+                            TextInputAction.done, // Enter key will be "Done
                         controller: _problemController,
                         maxLines: null,
                         expands: true,
@@ -176,4 +201,3 @@ class _HelpPageState extends State<HelpPage> with SingleTickerProviderStateMixin
     );
   }
 }
-

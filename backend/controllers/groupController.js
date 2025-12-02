@@ -206,7 +206,53 @@ const getGroupDetails = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Access denied!' });
         }
 
-        res.json({ success: true, group });
+        // If group has no paymentMethods defined at group-level, fall back
+        // to the leader's saved payment methods (leader may have added them in profile).
+        // This ensures members can see at least the leader's preferred methods.
+        let responseGroup = group.toObject();
+        try {
+            if (!responseGroup.paymentMethods || responseGroup.paymentMethods.length === 0) {
+                const leaderUser = await User.findById(group.leader._id).select('savedPaymentMethods');
+                if (leaderUser && Array.isArray(leaderUser.savedPaymentMethods) && leaderUser.savedPaymentMethods.length > 0) {
+                    // Map savedPaymentMethods shape to group's paymentMethods shape and
+                    // generate deep links where possible so the frontend can launch payment apps.
+                    responseGroup.paymentMethods = leaderUser.savedPaymentMethods.map(m => {
+                        let deepLink = undefined;
+                        try {
+                            if (m.accountNumber) {
+                                if (m.type === 'easypaisa') {
+                                    deepLink = `easypaisa://pay?number=${m.accountNumber}`;
+                                } else if (m.type === 'jazzcash') {
+                                    deepLink = `jazzcash://pay?number=${m.accountNumber}`;
+                                } else if (m.type === 'nayapay') {
+                                    deepLink = `nayapay://pay?number=${m.accountNumber}`;
+                                } else if (m.type === 'sadapay') {
+                                    deepLink = `sadapay://pay?number=${m.accountNumber}`;
+                                }
+                            }
+                        } catch (err) {
+                            // ignore deep link generation errors
+                        }
+
+                        return {
+                            type: m.type,
+                            accountTitle: m.accountTitle,
+                            accountNumber: m.accountNumber,
+                            iban: m.iban,
+                            bankName: m.bankName,
+                            deepLink: deepLink,
+                            isActive: true,
+                        };
+                    });
+                } else {
+                    responseGroup.paymentMethods = [];
+                }
+            }
+        } catch (err) {
+            console.error('Failed to include leader payment methods fallback:', err);
+        }
+
+        res.json({ success: true, group: responseGroup });
 
     } catch (error) {
         console.error(error);

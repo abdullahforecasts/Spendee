@@ -290,11 +290,15 @@ class _HomePageState extends State<HomePage> {
               ),
             )
             .then((value) {
-              if (value == true) _loadData(); // Refresh if data changed
-              // debug: print tapped group id
+              // Always refresh after returning from details to ensure
+              // paid progress and amounts are up to date.
+              _loadData();
+              // debug: print returned value and tapped group id
               try {
                 // ignore: avoid_print
-                print('Tapped group id=${group.id}');
+                print(
+                  'Returned from TripDetails (value=$value) for group id=${group.id}',
+                );
               } catch (_) {}
             });
       },
@@ -402,11 +406,67 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey.shade300,
-            ),
+            if (isCreator)
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'delete') {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Delete group?'),
+                        content: Text(
+                          "Are you sure you want to delete '${group.name}'? This cannot be undone.",
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      try {
+                        await _apiService.deleteGroup(group.id);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Group deleted')),
+                        );
+                        _loadData();
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to delete group: $e')),
+                        );
+                      }
+                    }
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                      size: 20,
+                    ),
+                  ),
+                ],
+                icon: Icon(Icons.more_vert, color: Colors.grey.shade400),
+              )
+            else
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey.shade300,
+              ),
           ],
         ),
       ),

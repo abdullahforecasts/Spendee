@@ -251,13 +251,15 @@ class ApiService {
 
   Future<List<dynamic>> getMyRooms() async {
     final response = await get('/rooms/my-rooms');
-    
+
     // Debug print to see what the backend returns
     print('Rooms response: $response');
-    
+
     if (response is Map && response.containsKey('rooms')) {
       return response['rooms']; // This returns List<dynamic>
-    } else if (response is Map && response.containsKey('success') && response['success'] == true) {
+    } else if (response is Map &&
+        response.containsKey('success') &&
+        response['success'] == true) {
       // Alternative: check for success field
       return response['rooms'] ?? [];
     } else if (response is List) {
@@ -338,6 +340,21 @@ class ApiService {
     Map<String, dynamic> paymentMethod,
   ) async {
     return await post('/groups/$groupId/payment-methods', paymentMethod);
+  }
+
+  // Submit feedback (message, optional name/email)
+  Future<Map<String, dynamic>> submitFeedback({
+    required String message,
+    String? name,
+    String? email,
+  }) async {
+    final body = {
+      'message': message,
+      if (name != null) 'name': name,
+      if (email != null) 'email': email,
+    };
+
+    return await post('/feedback', body);
   }
 
   Future<Map<String, dynamic>> deleteGroup(String groupId) async {

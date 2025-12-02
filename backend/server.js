@@ -7,6 +7,7 @@ import authRouter from "./routes/authRouter.js";
 import userRouter from "./routes/userRouter.js";
 import roomRouter from "./routes/roomRouter.js";
 import groupRouter from "./routes/groupRouter.js";
+import feedbackRouter from "./routes/feedbackRouter.js";
 import connectDB from "./config/db.js";
 
 dotenv.config();
@@ -36,14 +37,15 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
 app.use('/api/rooms', roomRouter);
 app.use('/api/groups', groupRouter);
+app.use('/api/feedback', feedbackRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ 
-        success: false, 
+    res.status(500).json({
+        success: false,
         message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 

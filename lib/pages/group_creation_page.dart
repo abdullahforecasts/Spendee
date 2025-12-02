@@ -18,6 +18,7 @@ class GroupCreationPage extends StatefulWidget {
 
 class _GroupCreationPageState extends State<GroupCreationPage> {
   final ApiService _apiService = ApiService();
+  String? _currentUserId;
   final TextEditingController _groupNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -28,28 +29,91 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
   List<MemberWrapper> _selectedFriends = [];
   List<RoomWrapper> _selectedRooms = [];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final profile = await _apiService.getProfile();
+      final currentUser = profile is Map ? (profile['user'] ?? profile) : null;
+      final id = currentUser != null
+          ? (currentUser['_id'] ?? currentUser['id'] ?? null)
+          : null;
+      setState(() {
+        _currentUserId = id?.toString();
+      });
+    } catch (_) {
+      // ignore errors here; fallback is null
+    }
+  }
+
   void _recalculateEqualShares() {
-    int totalPeople = _selectedFriends.length;
-    for (var room in _selectedRooms) {
-      totalPeople += room.members.length;
+    // Build ordered unique list of members: friends first, then room members
+    List<MemberWrapper> ordered = [];
+    final seen = <String>{};
+
+    for (var f in _selectedFriends) {
+      if (!seen.contains(f.id)) {
+        seen.add(f.id);
+        ordered.add(f);
+      }
     }
 
+    for (var room in _selectedRooms) {
+      for (var m in room.members) {
+        // skip duplicates and skip the current user (leader)
+        if (_currentUserId != null && m.id == _currentUserId) continue;
+        if (!seen.contains(m.id)) {
+          seen.add(m.id);
+          ordered.add(m);
+        }
+      }
+    }
+
+    final totalPeople = ordered.length;
     if (totalPeople == 0) {
-      _totalAmount = 0.0;
+      setState(() {
+        _totalAmount = 0.0;
+      });
       return;
     }
 
     if (_totalAmount < 0) _totalAmount = 0;
 
-    double share = _totalAmount / totalPeople;
-    String shareText = share.toStringAsFixed(0);
+    // Work in integer amounts (rupees). Round total to nearest int.
+    final int totalInt = _totalAmount.round();
+    final int base = totalInt ~/ totalPeople; // integer division
+    int remainder = totalInt - (base * totalPeople); // leftover to distribute
 
+    // Assign base to everyone, and distribute +1 to first `remainder` members
+    final assigned = <String, int>{};
+    for (int i = 0; i < ordered.length; i++) {
+      final id = ordered[i].id;
+      assigned[id] = base + (i < remainder ? 1 : 0);
+    }
+
+    // Apply to controllers
     for (var f in _selectedFriends) {
-      f.amountController.text = shareText;
+      // Skip leader
+      if (_currentUserId != null && f.id == _currentUserId) {
+        f.setAmount(0);
+        continue;
+      }
+      final v = assigned[f.id] ?? 0;
+      f.setAmount(v);
     }
     for (var r in _selectedRooms) {
       for (var m in r.members) {
-        m.amountController.text = shareText;
+        // Skip leader
+        if (_currentUserId != null && m.id == _currentUserId) {
+          m.setAmount(0);
+          continue;
+        }
+        final v = assigned[m.id] ?? 0;
+        m.setAmount(v);
       }
     }
     setState(() {});
@@ -62,17 +126,136 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
       double val = double.tryParse(f.amountController.text) ?? 0.0;
       if (val < 0) val = 0;
       sum += val;
+      // keep lastKnownAmount in sync for custom adjustments
+      f.lastKnownAmount = (val).toInt();
     }
     for (var r in _selectedRooms) {
       for (var m in r.members) {
         double val = double.tryParse(m.amountController.text) ?? 0.0;
         if (val < 0) val = 0;
         sum += val;
+        m.lastKnownAmount = (val).toInt();
       }
     }
 
     setState(() {
       _totalAmount = sum;
+    });
+  }
+
+  List<MemberWrapper> _getAllMembers() {
+    final List<MemberWrapper> all = [];
+    for (var f in _selectedFriends) {
+      // skip leader
+      if (_currentUserId != null && f.id == _currentUserId) continue;
+      all.add(f);
+    }
+    for (var r in _selectedRooms) {
+      for (var m in r.members) {
+        if (_currentUserId != null && m.id == _currentUserId) continue;
+        all.add(m);
+      }
+    }
+    return all;
+  }
+
+  void _onCustomAmountChanged(MemberWrapper changed, String newVal) {
+    if (_distributionType != DistributionType.custom) return;
+
+    final int newInt = int.tryParse(newVal) ?? 0;
+    final int oldInt = changed.lastKnownAmount;
+    final int delta =
+        newInt - oldInt; // positive => need to subtract from others
+
+    // if no change, nothing to do
+    if (delta == 0) return;
+
+    final others = _getAllMembers().where((m) => m.id != changed.id).toList();
+    if (others.isEmpty) {
+      // No one to take from or give to — revert change and inform user
+      changed.setAmount(oldInt);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other members to adjust')),
+      );
+      return;
+    }
+
+    // Sum of others
+    int othersSum = others.fold(0, (s, m) => s + m.lastKnownAmount);
+
+    if (delta > 0) {
+      // Need to reduce others by total = delta
+      if (delta > othersSum) {
+        // Not enough to cover the increase
+        changed.setAmount(oldInt);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Not enough amount in others to increase this member',
+            ),
+          ),
+        );
+        return;
+      }
+
+      int remaining = delta;
+      int remainingCount = others.length;
+      for (int i = 0; i < others.length; i++) {
+        final m = others[i];
+        // ceil division to fairly take larger chunks first
+        int take = (remaining + remainingCount - 1) ~/ remainingCount;
+        int actual = take <= m.lastKnownAmount ? take : m.lastKnownAmount;
+        m.setAmount(m.lastKnownAmount - actual);
+        remaining -= actual;
+        remainingCount -= 1;
+        if (remaining <= 0) break;
+      }
+      if (remaining != 0) {
+        // fallback shouldn't happen because delta <= othersSum
+        changed.setAmount(oldInt);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Adjustment failed — try smaller value'),
+          ),
+        );
+        return;
+      }
+      // commit changed
+      changed.setAmount(newInt);
+    } else {
+      // delta < 0 : user reduced this member; distribute (-delta) to others
+      int toDistribute = -delta;
+      int remaining = toDistribute;
+      int remainingCount = others.length;
+      for (int i = 0; i < others.length; i++) {
+        final m = others[i];
+        int give = (remaining + remainingCount - 1) ~/ remainingCount; // ceil
+        m.setAmount(m.lastKnownAmount + give);
+        remaining -= give;
+        remainingCount -= 1;
+        if (remaining <= 0) break;
+      }
+      if (remaining != 0) {
+        // shouldn't happen
+        changed.setAmount(oldInt);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Adjustment failed — try smaller change'),
+          ),
+        );
+        return;
+      }
+      changed.setAmount(newInt);
+    }
+
+    // Keep totalAmount consistent (should remain the same)
+    // recompute lastKnownAmount sum to set _totalAmount precisely
+    final int sumInt = _getAllMembers().fold(
+      0,
+      (s, m) => s + m.lastKnownAmount,
+    );
+    setState(() {
+      _totalAmount = sumInt.toDouble();
     });
   }
 
@@ -184,7 +367,8 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
 
     if (result != null && result is List<Map<String, dynamic>>) {
       setState(() {
-        _selectedFriends = result
+        // Map to MemberWrapper and exclude current user (leader) if returned
+        final mapped = result
             .map(
               (data) => MemberWrapper(
                 id: data['id'],
@@ -192,7 +376,21 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
                 profilePic: data['image'],
               ),
             )
+            .where((m) => m.id != _currentUserId)
             .toList();
+
+        _selectedFriends = mapped;
+
+        // Remove any duplicates from selected rooms (if a friend was already part of a room)
+        final friendIds = _selectedFriends.map((f) => f.id).toSet();
+        for (var room in _selectedRooms) {
+          room.members.removeWhere(
+            (m) => friendIds.contains(m.id) || m.id == _currentUserId,
+          );
+        }
+        // Remove rooms that now have no members after filtering
+        _selectedRooms.removeWhere((r) => r.members.isEmpty);
+
         _triggerRecalculation();
       });
     }
@@ -214,22 +412,37 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
     if (result != null && result is Map<String, dynamic>) {
       final rooms = result['rooms'] as List<RoomModel>;
       setState(() {
-        _selectedRooms = rooms.map((room) {
-          List<MemberWrapper> roomMembers = room.members
-              .map(
-                (user) => MemberWrapper(
-                  id: user.id,
-                  name: user.name,
-                  profilePic: user.profilePic ?? 'assets/profile.jpg',
-                ),
-              )
-              .toList();
-          return RoomWrapper(
-            id: room.id,
-            name: room.name,
-            members: roomMembers,
-          );
-        }).toList();
+        // Build selected rooms but avoid duplicating members that are
+        // already in _selectedFriends or already added from previous rooms.
+        final existingIds = <String>{};
+        for (var f in _selectedFriends) {
+          existingIds.add(f.id);
+        }
+
+        final List<RoomWrapper> mapped = [];
+        for (var room in rooms) {
+          final List<MemberWrapper> roomMembers = [];
+          for (var user in room.members) {
+            if (user.id == null) continue;
+            // skip current user (leader)
+            if (_currentUserId != null && user.id == _currentUserId) continue;
+            if (existingIds.contains(user.id)) continue; // skip duplicates
+            existingIds.add(user.id);
+            roomMembers.add(
+              MemberWrapper(
+                id: user.id,
+                name: user.name,
+                profilePic: user.profilePic ?? 'assets/profile.jpg',
+              ),
+            );
+          }
+          if (roomMembers.isNotEmpty) {
+            mapped.add(
+              RoomWrapper(id: room.id, name: room.name, members: roomMembers),
+            );
+          }
+        }
+        _selectedRooms = mapped;
         _triggerRecalculation();
       });
     }
@@ -293,15 +506,22 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
       // Remove duplicates
       memberIds = memberIds.toSet().toList();
 
+      // Ensure leader (current user) is not part of memberIds
+      if (_currentUserId != null) {
+        memberIds.removeWhere((id) => id == _currentUserId);
+      }
+
       // Collect custom shares if custom distribution
       List<double>? customShares;
       if (_distributionType == DistributionType.custom) {
         customShares = [];
         for (var f in _selectedFriends) {
+          if (_currentUserId != null && f.id == _currentUserId) continue;
           customShares.add(double.parse(f.amountController.text));
         }
         for (var r in _selectedRooms) {
           for (var m in r.members) {
+            if (_currentUserId != null && m.id == _currentUserId) continue;
             customShares.add(double.parse(m.amountController.text));
           }
         }
@@ -726,7 +946,7 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (val) {
                   if (_distributionType == DistributionType.custom) {
-                    _recalculateTotalFromMembers();
+                    _onCustomAmountChanged(member, val);
                   }
                 },
                 style: GoogleFonts.poppins(
@@ -836,7 +1056,7 @@ class _GroupCreationPageState extends State<GroupCreationPage> {
                             onChanged: (val) {
                               if (_distributionType ==
                                   DistributionType.custom) {
-                                _recalculateTotalFromMembers();
+                                _onCustomAmountChanged(member, val);
                               }
                             },
                             style: GoogleFonts.poppins(
@@ -885,12 +1105,18 @@ class MemberWrapper {
   final String name;
   final String profilePic;
   final TextEditingController amountController;
+  int lastKnownAmount = 0; // track integer amount for redistribution
 
   MemberWrapper({
     required this.id,
     required this.name,
     required this.profilePic,
   }) : amountController = TextEditingController();
+
+  void setAmount(int value) {
+    lastKnownAmount = value;
+    amountController.text = value.toString();
+  }
 }
 
 class RoomWrapper {

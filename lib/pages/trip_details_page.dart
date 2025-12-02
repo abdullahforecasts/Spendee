@@ -22,6 +22,7 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
   UserModel? _currentUser;
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _hasChanges = false;
 
   // For user's saved payment methods
   List<Map<String, dynamic>> _myPaymentMethods = [];
@@ -100,7 +101,52 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
         ),
       );
 
-      _loadData(); // Refresh
+      // Update local model immediately so the paid bar and member tile refresh instantly.
+      if (_group != null) {
+        try {
+          final List<GroupMemberModel> newMembers = _group!.members.map((m) {
+            if (m.user.id != memberId) return m;
+            final double newPaid = (m.amountPaid + amount).clamp(
+              0.0,
+              m.shareAmount,
+            );
+            final bool nowPaid = newPaid >= m.shareAmount;
+            return GroupMemberModel(
+              user: m.user,
+              shareAmount: m.shareAmount,
+              amountPaid: newPaid,
+              hasPaid: nowPaid,
+              lastPaymentDate: DateTime.now(),
+            );
+          }).toList();
+
+          _group = GroupModel(
+            id: _group!.id,
+            name: _group!.name,
+            description: _group!.description,
+            leader: _group!.leader,
+            members: newMembers,
+            goalAmount: _group!.goalAmount,
+            currentAmount: (_group!.currentAmount + amount),
+            splitMethod: _group!.splitMethod,
+            paymentMethods: _group!.paymentMethods,
+            deadline: _group!.deadline,
+            status: _group!.status,
+            coverImage: _group!.coverImage,
+            createdAt: _group!.createdAt,
+          );
+          setState(() {});
+          _hasChanges = true;
+        } catch (_) {}
+      }
+
+      // Refresh from server in background to ensure canonical state
+      _loadData().catchError((e) {
+        try {
+          // ignore: avoid_print
+          print('Background reload failed: $e');
+        } catch (_) {}
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -112,16 +158,54 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
   }
 
   Future<void> _launchPaymentLink(String deepLink) async {
-    final Uri url = Uri.parse(deepLink);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
+    try {
+      final Uri url = Uri.parse(deepLink);
+
+      // First check whether any app can handle this URL
+      final bool can = await canLaunchUrl(url);
+      if (!can) {
+        // No app registered for this URI scheme
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No app installed can open this payment link.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        // Debug log
+        try {
+          // ignore: avoid_print
+          print('No handler for deep link: $deepLink');
+        } catch (_) {}
+        return;
+      }
+
+      final bool launched = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to launch payment app for this link.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        try {
+          // ignore: avoid_print
+          print('launchUrl returned false for: $deepLink');
+        } catch (_) {}
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open payment app'),
+        SnackBar(
+          content: Text('Could not open payment app: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
+      try {
+        // ignore: avoid_print
+        print('Exception while launching deep link: $e');
+      } catch (_) {}
     }
   }
 
@@ -432,224 +516,269 @@ class _TripDetailsPageState extends State<TripDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF00D09E),
-        body: const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-    }
-
-    if (_errorMessage.isNotEmpty) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF00D09E),
-        appBar: AppBar(backgroundColor: const Color(0xFF00D09E), elevation: 0),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 60, color: Colors.white),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  _errorMessage,
-                  style: GoogleFonts.poppins(color: Colors.white),
-                  textAlign: TextAlign.center,
-                ),
+    // Ensure system back returns a result indicating if anything changed
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _hasChanges);
+        return false;
+      },
+      child: Builder(
+        builder: (context) {
+          if (_isLoading) {
+            return Scaffold(
+              backgroundColor: const Color(0xFF00D09E),
+              body: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
               ),
-              ElevatedButton(
-                onPressed: _loadData,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
-                child: Text(
-                  'Retry',
-                  style: GoogleFonts.poppins(color: const Color(0xFF00D09E)),
-                ),
+            );
+          }
+
+          if (_errorMessage.isNotEmpty) {
+            return Scaffold(
+              backgroundColor: const Color(0xFF00D09E),
+              appBar: AppBar(
+                backgroundColor: const Color(0xFF00D09E),
+                elevation: 0,
               ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_group == null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF00D09E),
-        body: const Center(child: Text('Group not found')),
-      );
-    }
-
-    // Sort members: unpaid first for creator view
-    List<GroupMemberModel> sortedMembers = List.from(_group!.members);
-    if (_isCreator) {
-      sortedMembers.sort((a, b) {
-        if (a.hasPaid == b.hasPaid) return 0;
-        return a.hasPaid ? 1 : -1; // Paid goes to bottom
-      });
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF00D09E),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF00D09E),
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          "Spendee",
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            fontSize: 25,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          if (_isCreator)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              onSelected: (value) {
-                if (value == 'delete') {
-                  _confirmDeleteGroup();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.delete_outline,
-                        color: Colors.red,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Delete Group",
-                        style: GoogleFonts.poppins(color: Colors.red),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Header Info
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
-            child: Column(
-              children: [
-                Text(
-                  _group!.name,
-                  style: GoogleFonts.poppins(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  _isCreator
-                      ? "Total: Rs. ${_group!.goalAmount.toStringAsFixed(0)}"
-                      : _currentUser != null
-                      ? "Your Share: Rs. ${_group!.members.firstWhere((m) => m.user.id == _currentUser!.id, orElse: () => _group!.members.first).shareAmount.toStringAsFixed(0)}"
-                      : "Rs. ${_group!.goalAmount.toStringAsFixed(0)}",
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // White Sheet
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE6F8F0),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(40),
-                  topRight: Radius.circular(40),
-                ),
-              ),
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Group Members",
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        _isCreator ? "(Creator View)" : "(Member View)",
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Members List
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _loadData,
-                      color: const Color(0xFF00D09E),
-                      child: ListView.builder(
-                        itemCount: sortedMembers.length,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemBuilder: (context, index) {
-                          return _buildMemberTile(sortedMembers[index]);
-                        },
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 60,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        _errorMessage,
+                        style: GoogleFonts.poppins(color: Colors.white),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                  ),
-
-                  // Pay Now Button (Only for Non-Creators)
-                  if (!_isCreator) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: _showPaymentDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00D09E),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          "Pay Now",
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                    ElevatedButton(
+                      onPressed: _loadData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                      ),
+                      child: Text(
+                        'Retry',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF00D09E),
                         ),
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
+            );
+          }
+
+          if (_group == null) {
+            return Scaffold(
+              backgroundColor: const Color(0xFF00D09E),
+              body: const Center(child: Text('Group not found')),
+            );
+          }
+
+          // Sort members: unpaid first for creator view
+          List<GroupMemberModel> sortedMembers = List.from(_group!.members);
+          if (_isCreator) {
+            sortedMembers.sort((a, b) {
+              if (a.hasPaid == b.hasPaid) return 0;
+              return a.hasPaid ? 1 : -1; // Paid goes to bottom
+            });
+          }
+
+          return Scaffold(
+            backgroundColor: const Color(0xFF00D09E),
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF00D09E),
+              elevation: 0,
+              centerTitle: true,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                onPressed: () => Navigator.pop(context, _hasChanges),
+              ),
+              title: Text(
+                "Spendee",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 25,
+                  color: Colors.white,
+                ),
+              ),
+              actions: [
+                if (_isCreator)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: Colors.white),
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _confirmDeleteGroup();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-          ),
-        ],
+            body: Column(
+              children: [
+                // Header Info
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 25,
+                    vertical: 20,
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _group!.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        _isCreator
+                            ? "Total: Rs. ${_group!.goalAmount.toStringAsFixed(0)}"
+                            : _currentUser != null
+                            ? "Your Share: Rs. ${_group!.members.firstWhere((m) => m.user.id == _currentUser!.id, orElse: () => _group!.members.first).shareAmount.toStringAsFixed(0)}"
+                            : "Rs. ${_group!.goalAmount.toStringAsFixed(0)}",
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // White Sheet
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE6F8F0),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(25),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Group Members",
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _isCreator ? "(Creator View)" : "(Member View)",
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+
+                        // Members List
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: _loadData,
+                            color: const Color(0xFF00D09E),
+                            child: ListView.builder(
+                              itemCount: sortedMembers.length,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemBuilder: (context, index) {
+                                return _buildMemberTile(sortedMembers[index]);
+                              },
+                            ),
+                          ),
+                        ),
+
+                        // Pay Now Button (Only for Non-Creators)
+                        if (!_isCreator) ...[
+                          const SizedBox(height: 10),
+                          // Determine whether current user can pay (not already paid)
+                          Builder(
+                            builder: (ctx) {
+                              GroupMemberModel? myMember;
+                              if (_currentUser != null && _group != null) {
+                                try {
+                                  myMember = _group!.members.firstWhere(
+                                    (m) => m.user.id == _currentUser!.id,
+                                  );
+                                } catch (_) {
+                                  myMember = null;
+                                }
+                              }
+
+                              final bool canPay =
+                                  myMember != null &&
+                                  !myMember.hasPaid &&
+                                  (myMember.shareAmount - myMember.amountPaid) >
+                                      0;
+                              final String buttonText = canPay
+                                  ? 'Pay Now'
+                                  : 'Already Paid';
+
+                              return SizedBox(
+                                width: double.infinity,
+                                height: 55,
+                                child: ElevatedButton(
+                                  onPressed: canPay ? _showPaymentDialog : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: canPay
+                                        ? const Color(0xFF00D09E)
+                                        : Colors.grey.shade300,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    buttonText,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: canPay
+                                          ? Colors.white
+                                          : Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
